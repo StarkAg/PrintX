@@ -21,7 +21,8 @@ function doGet(e) {
   return createResponse(200, {
     status: 'ok',
     service: 'PrintX Drive Upload',
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
+    cors: 'enabled'
   });
 }
 
