@@ -302,8 +302,8 @@ function createResponse(statusCode, data) {
   const out = ContentService.createTextOutput(JSON.stringify(data));
   out.setMimeType(ContentService.MimeType.JSON);
   
-  // Explicitly set CORS headers (though Apps Script should handle this automatically)
-  // These headers help ensure CORS works properly
+  // Note: Apps Script automatically adds CORS headers when deployed with "Anyone" access
+  // This function is called by doGet and doPost which Apps Script handles
   return out;
 }
 
