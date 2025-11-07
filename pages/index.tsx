@@ -100,9 +100,10 @@ export default function Home() {
     }
 
     // Check file sizes before uploading
-    // Apps Script: 75MB per file (becomes ~100MB when base64 encoded), 500MB total
-    const maxFileSize = 75 * 1024 * 1024; // 75MB per file (becomes ~100MB when base64 encoded)
-    const maxTotalSize = 500 * 1024 * 1024; // 500MB total (includes all files + payment screenshot)
+    // Vercel proxy limit: 4.5MB total request (base64 increases size by ~33%)
+    // Limit to 3.4MB per file to stay safely under 4.5MB when base64 encoded
+    const maxFileSize = 3.4 * 1024 * 1024; // 3.4MB per file (becomes ~4.5MB when base64 encoded)
+    const maxTotalSize = 4.5 * 1024 * 1024; // 4.5MB total (Vercel proxy limit)
 
     // Check individual file sizes
     for (const fileWithOptions of files) {
@@ -111,7 +112,7 @@ export default function Home() {
           `File "${fileWithOptions.file.name}" is too large (${(
             fileWithOptions.file.size /
             (1024 * 1024)
-          ).toFixed(2)}MB). Maximum file size is 75MB per file.`
+          ).toFixed(2)}MB). Maximum file size is 3.4MB per file.`
         );
         return;
       }
@@ -123,7 +124,7 @@ export default function Home() {
         `Payment screenshot is too large (${(
           paymentScreenshot.size /
           (1024 * 1024)
-        ).toFixed(2)}MB). Maximum file size is 75MB. Please compress the screenshot.`
+        ).toFixed(2)}MB). Maximum file size is 3.4MB. Please compress the screenshot.`
       );
       return;
     }
@@ -137,7 +138,7 @@ export default function Home() {
       const screenshotSizeMB = (paymentScreenshot.size / (1024 * 1024)).toFixed(2);
       const totalSizeMB = (totalSize / (1024 * 1024)).toFixed(2);
       setError(
-        `Total size exceeds limit. Files: ${filesSizeMB}MB + Payment screenshot: ${screenshotSizeMB}MB = ${totalSizeMB}MB. Maximum total is 500MB (including payment screenshot). Please compress files or upload fewer files.`
+        `Total size exceeds limit. Files: ${filesSizeMB}MB + Payment screenshot: ${screenshotSizeMB}MB = ${totalSizeMB}MB. Maximum total is 4.5MB (including payment screenshot). Please compress files or upload fewer files.`
       );
       return;
     }
