@@ -162,6 +162,41 @@ npm start
 npm run lint
 ```
 
+## Deployment
+
+### Vercel Deployment
+
+This project is ready to deploy on Vercel:
+
+1. **Push to GitHub** (already done):
+   ```bash
+   git push origin main
+   ```
+
+2. **Deploy to Vercel**:
+   - Go to [Vercel](https://vercel.com)
+   - Click "New Project"
+   - Import your GitHub repository: `StarkAg/printx-simple`
+   - Vercel will auto-detect Next.js settings
+   - Click "Deploy"
+
+3. **Environment Variables** (optional, for Google Drive):
+   - In Vercel project settings, add:
+     - `GDRIVE_CLIENT_ID`
+     - `GDRIVE_CLIENT_SECRET`
+     - `GDRIVE_REFRESH_TOKEN`
+
+4. **Important Notes for Production**:
+   - File uploads are stored in `/public/uploads/` (ephemeral on Vercel)
+   - For production, use cloud storage (S3, Cloudinary, etc.)
+   - Orders are stored in `data/orders.json` (ephemeral on Vercel)
+   - For production, use a database (PostgreSQL, MongoDB, etc.)
+   - Admin dashboard is not protected - add authentication before deploying
+
+### Repository
+
+- GitHub: https://github.com/StarkAg/printx-simple
+
 ## License
 
 Private project for local testing.
