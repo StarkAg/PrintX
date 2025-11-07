@@ -5,9 +5,12 @@
 const FOLDER_ID = '1M21jnE7SEm-81HUufhnas24q42nrmM2K'; // your Drive folder
 const SHEET_ID  = '19pxCvykhIsTDZOFYpCcaVu8To1lRDfP6-OF_NsiqdNo'; // your Sheet (optional)
 
-const MAX_FILE_SIZE = 25 * 1024 * 1024;  // 25 MB max per decoded file (matches Next.js limit)
-const MAX_TOTAL_SIZE = 45 * 1024 * 1024; // 45 MB total decoded per request (matches Next.js limit, safe for Apps Script)
-const MAX_FILES = 10; // matches Next.js client-side limit
+// Google Drive limits: 5TB per file, 750GB/day upload quota
+// Apps Script limits: 6 min execution, 50MB response, 100MB request
+// For safety, we'll use reasonable limits that work well
+const MAX_FILE_SIZE = 100 * 1024 * 1024;  // 100 MB max per file (well under Drive's 5TB limit)
+const MAX_TOTAL_SIZE = 500 * 1024 * 1024; // 500 MB total per request (safe for Apps Script, under 6 min execution)
+const MAX_FILES = 20; // Increased limit for better flexibility
 
 // --- CORS preflight handler ---
 function doOptions(e) {
@@ -116,10 +119,34 @@ function doPost(e) {
       }
     }
 
-    // --- optional Sheet logging ---
+    // --- Identify payment screenshot and separate from regular files ---
+    let paymentScreenshotFile = null;
+    const regularFiles = [];
+    
+    for (let i = 0; i < uploadedFiles.length; i++) {
+      const file = uploadedFiles[i];
+      const originalFile = files[i];
+      // Check if this is the payment screenshot (by checking isPaymentScreenshot flag or name pattern)
+      if (originalFile && (originalFile.isPaymentScreenshot === true || file.name.toLowerCase().includes('payment') || file.name.toLowerCase().includes('screenshot'))) {
+        paymentScreenshotFile = file;
+      } else {
+        regularFiles.push(file);
+      }
+    }
+
+    // --- Store order data in Sheet (includes payment screenshot if provided) ---
+    let orderRowNumber = null;
     if (SHEET_ID && SHEET_ID.trim() !== '' && SHEET_ID !== 'YOUR_SHEET_ID_HERE' && orderData) {
       try {
-        logToSheet(orderData, uploadedFiles, errors);
+        // Include payment screenshot info if found
+        const orderDataWithScreenshot = {
+          ...orderData,
+          paymentScreenshotDriveId: paymentScreenshotFile ? paymentScreenshotFile.fileId : '',
+          paymentScreenshotPath: paymentScreenshotFile ? paymentScreenshotFile.webViewLink : '',
+          status: orderData.status || 'Pending'
+        };
+        // Use regular files (not payment screenshot) for order logging
+        orderRowNumber = logToSheet(orderDataWithScreenshot, regularFiles, errors);
       } catch (sheetErr) {
         console.error('Sheet log error:', sheetErr);
         // Don't fail the request if sheet logging fails
@@ -128,7 +155,14 @@ function doPost(e) {
 
     return createResponse(200, {
       success: true,
-      files: uploadedFiles,
+      orderId: orderData?.orderId || '',
+      orderRowNumber: orderRowNumber,
+      files: regularFiles, // Return only regular files (not payment screenshot)
+      paymentScreenshot: paymentScreenshotFile ? {
+        fileId: paymentScreenshotFile.fileId,
+        webViewLink: paymentScreenshotFile.webViewLink,
+        name: paymentScreenshotFile.name
+      } : null,
       errors: errors.length ? errors : undefined,
       uploadedCount: uploadedFiles.length,
       totalCount: files.length
@@ -165,7 +199,7 @@ function getOrCreateFolder(folderId) {
   }
 }
 
-// --- Log orders to Sheet ---
+// --- Store full order data in Sheet ---
 function logToSheet(orderData, uploadedFiles, errors) {
   try {
     // Double-check SHEET_ID is valid (should be checked before calling, but be safe)
@@ -174,22 +208,64 @@ function logToSheet(orderData, uploadedFiles, errors) {
     }
     
     const sheet = SpreadsheetApp.openById(SHEET_ID).getActiveSheet();
+    
+    // Initialize headers if sheet is empty
     if (sheet.getLastRow() === 0) {
-      sheet.appendRow(['Timestamp','Order ID','Total','VPA','Files Count','File IDs','File Names','Errors']);
+      sheet.appendRow([
+        'Timestamp',
+        'Order ID',
+        'Status',
+        'Total',
+        'VPA',
+        'Files Count',
+        'File Data (JSON)',
+        'Payment Screenshot Drive ID',
+        'Payment Screenshot Path',
+        'Errors'
+      ]);
     }
 
     const timestamp = new Date().toISOString();
     const orderId = orderData.orderId || '';
     const total = orderData.total || 0;
     const vpa = orderData.vpa || '';
-    const fileIds = uploadedFiles.map(f => f.fileId).join(', ');
-    const fileNames = uploadedFiles.map(f => f.name).join(', ');
+    const status = orderData.status || 'Pending';
+    
+    // Store full file data as JSON for complete order information
+    const fileData = uploadedFiles.map(f => ({
+      name: f.name,
+      fileId: f.fileId,
+      webViewLink: f.webViewLink,
+      webContentLink: f.webContentLink,
+      size: f.size,
+      mimeType: f.mimeType,
+      options: orderData.files && orderData.files.find(ff => ff.name === f.name)?.options || {}
+    }));
+    
+    const fileDataJson = JSON.stringify(fileData);
+    const paymentScreenshotDriveId = orderData.paymentScreenshotDriveId || '';
+    const paymentScreenshotPath = orderData.paymentScreenshotPath || '';
     const errMsg = errors.length ? errors.map(e => (e.name?e.name+': ':'') + (e.error||'')).join('; ') : 'None';
 
-    sheet.appendRow([timestamp, orderId, total, vpa, uploadedFiles.length, fileIds, fileNames, errMsg]);
+    sheet.appendRow([
+      timestamp,
+      orderId,
+      status,
+      total,
+      vpa,
+      uploadedFiles.length,
+      fileDataJson,
+      paymentScreenshotDriveId,
+      paymentScreenshotPath,
+      errMsg
+    ]);
+    
+    // Return the row number for reference
+    return sheet.getLastRow();
   } catch (err) {
     console.error('logToSheet error:', err);
     // Don't throw - sheet logging failures shouldn't break file uploads
+    return null;
   }
 }
 

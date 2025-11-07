@@ -35,7 +35,7 @@ export default function Home() {
     return filesSize + screenshotSize;
   }, [files, paymentScreenshot]);
 
-  const maxTotalSize = 45 * 1024 * 1024; // 45MB
+  const maxTotalSize = 500 * 1024 * 1024; // 500MB (Google Drive limit)
 
   const upiPayload = useMemo(() => {
     const amount = calculatedTotal > 0 ? calculatedTotal.toFixed(2) : undefined;
@@ -91,7 +91,7 @@ export default function Home() {
     }
 
     // Check file count limit (Google Drive quota safety)
-    const maxFiles = 10;
+    const maxFiles = 20; // Increased to match Apps Script limit
     if (files.length > maxFiles) {
       setError(
         `Maximum ${maxFiles} files allowed per order. Please remove ${files.length - maxFiles} file(s) and try again.`
@@ -99,9 +99,11 @@ export default function Home() {
       return;
     }
 
-    // Check file sizes before uploading
-    const maxFileSize = 25 * 1024 * 1024; // 25MB per file
-    const maxTotalSize = 45 * 1024 * 1024; // 45MB total (includes all files + payment screenshot)
+    // Check file sizes before uploading (matching Google Drive limits)
+    // Google Drive: 5TB per file, 750GB/day quota
+    // Apps Script: 100MB per file, 500MB total (safe execution time)
+    const maxFileSize = 100 * 1024 * 1024; // 100MB per file (Google Drive limit)
+    const maxTotalSize = 500 * 1024 * 1024; // 500MB total (includes all files + payment screenshot)
 
     // Check individual file sizes
     for (const fileWithOptions of files) {
@@ -110,7 +112,7 @@ export default function Home() {
           `File "${fileWithOptions.file.name}" is too large (${(
             fileWithOptions.file.size /
             (1024 * 1024)
-          ).toFixed(2)}MB). Maximum file size is 25MB per file.`
+          ).toFixed(2)}MB). Maximum file size is 100MB per file.`
         );
         return;
       }
@@ -122,7 +124,7 @@ export default function Home() {
         `Payment screenshot is too large (${(
           paymentScreenshot.size /
           (1024 * 1024)
-        ).toFixed(2)}MB). Maximum file size is 25MB. Please compress the screenshot.`
+        ).toFixed(2)}MB). Maximum file size is 100MB. Please compress the screenshot.`
       );
       return;
     }
@@ -136,7 +138,7 @@ export default function Home() {
       const screenshotSizeMB = (paymentScreenshot.size / (1024 * 1024)).toFixed(2);
       const totalSizeMB = (totalSize / (1024 * 1024)).toFixed(2);
       setError(
-        `Total size exceeds limit. Files: ${filesSizeMB}MB + Payment screenshot: ${screenshotSizeMB}MB = ${totalSizeMB}MB. Maximum total is 45MB (including payment screenshot). Please compress files or upload fewer files.`
+        `Total size exceeds limit. Files: ${filesSizeMB}MB + Payment screenshot: ${screenshotSizeMB}MB = ${totalSizeMB}MB. Maximum total is 500MB (including payment screenshot). Please compress files or upload fewer files.`
       );
       return;
     }
@@ -145,65 +147,96 @@ export default function Home() {
     setError(null);
 
     try {
-      const total = calculatedTotal;
-      const formData = new FormData();
+      // Generate order ID
+      const orderId = Math.floor(10000 + Math.random() * 90000).toString();
+      
+      // Upload files directly to Google Drive via Apps Script (bypasses Vercel's 4.5MB limit)
+      const webAppUrl = process.env.NEXT_PUBLIC_APPS_SCRIPT_WEB_APP_URL;
+      if (!webAppUrl) {
+        throw new Error('Apps Script Web App URL not configured. Please contact support.');
+      }
 
-      // Add files
-      files.forEach((fileWithOptions) => {
-        formData.append('files', fileWithOptions.file);
-      });
-
-      // Add payment screenshot
-      formData.append('paymentScreenshot', paymentScreenshot);
-
-      // Add order data (thumbnails are optional to reduce payload size)
-      // Only include thumbnail if it's small (under 500KB when base64 encoded)
-      const orderData = {
-        files: files.map((f) => {
-          const fileData: any = {
-            name: f.file.name,
-            options: f.options,
+      // Helper function to convert File to base64 (handles large files)
+      const fileToBase64 = (file: File): Promise<string> => {
+        return new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => {
+            const result = reader.result as string;
+            // Remove data URL prefix (e.g., "data:image/png;base64,")
+            const base64 = result.split(',')[1] || result;
+            resolve(base64);
           };
-          // Only include thumbnail if it exists and is reasonably small
-          // Base64 encoding increases size by ~33%, so limit to ~375KB original size
-          if (f.preview) {
-            const base64Size = (f.preview.length * 3) / 4; // Approximate decoded size
-            if (base64Size < 500 * 1024) { // Only include if under 500KB
-              fileData.thumbnail = f.preview;
-            }
-            // Otherwise, thumbnail will be generated server-side from the file
-          }
-          return fileData;
-        }),
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+        });
+      };
+
+      // Convert all files (including payment screenshot) to base64
+      const allFiles: Array<{ file: File; options?: any; isPaymentScreenshot?: boolean }> = [
+        ...files.map(f => ({ file: f.file, options: f.options })),
+        { file: paymentScreenshot, isPaymentScreenshot: true },
+      ];
+
+      const filesData = await Promise.all(
+        allFiles.map(async (item) => {
+          const base64 = await fileToBase64(item.file);
+          return {
+            name: item.file.name,
+            data: base64,
+            mimeType: item.file.type || 'application/octet-stream',
+            size: item.file.size,
+            isPaymentScreenshot: item.isPaymentScreenshot || false,
+            options: item.options,
+          };
+        })
+      );
+
+      // Prepare order data
+      const orderData = {
+        orderId,
         total: calculatedTotal,
         vpa: vpaDisplay,
+        status: 'Pending',
+        files: files.map((f) => ({
+          name: f.file.name,
+          options: f.options,
+        })),
       };
-      formData.append('orderData', JSON.stringify(orderData));
 
-      const response = await fetch('/api/order', {
+      // Upload all files (including payment screenshot) to Apps Script in one request
+      const uploadResponse = await fetch(webAppUrl, {
         method: 'POST',
-        body: formData,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          files: filesData,
+          orderData: orderData,
+        }),
       });
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        if (response.status === 413) {
-          throw new Error(
-            errorData.message ||
-              'File size limit exceeded. Maximum: 25MB per file, 45MB total. Please compress your files or upload fewer files.'
-          );
-        }
+      if (!uploadResponse.ok) {
+        const errorData = await uploadResponse.json().catch(() => ({}));
         throw new Error(
-          errorData.message ||
-            errorData.error ||
-            'Failed to submit order. Please try again.'
+          errorData.error || errorData.message || 'Failed to upload files to Google Drive'
         );
       }
 
-      const result = await response.json();
-      setOrderId(result.orderId);
+      const uploadResult = await uploadResponse.json();
+      
+      if (!uploadResult.success) {
+        const errorMsg = uploadResult.errors?.map((e: any) => e.error).join(', ') || uploadResult.error;
+        throw new Error(
+          errorMsg || 'File upload failed. Please try again.'
+        );
+      }
+
+      // Payment screenshot is handled by Apps Script and stored in Google Sheets
+      // Order is already created with all file information
+
+      setOrderId(orderId);
       setOrderSubmitted(true);
-      console.log('Order submitted:', result);
+      console.log('Order submitted:', { orderId, uploadResult });
     } catch (error: any) {
       console.error('Error submitting order:', error);
       setError(
@@ -560,16 +593,16 @@ export default function Home() {
                   </p>
                   <p className="text-xs text-gray-400 mt-1">
                     Size: {(paymentScreenshot.size / (1024 * 1024)).toFixed(2)}MB
-                    {paymentScreenshot.size > 25 * 1024 * 1024 && (
+                    {paymentScreenshot.size > 100 * 1024 * 1024 && (
                       <span className="text-red-400 ml-2">
-                        (Too large! Max 25MB)
+                        (Too large! Max 100MB)
                       </span>
                     )}
                   </p>
                 </div>
               )}
               <p className="text-xs text-gray-500 mt-2">
-                Maximum file size: 25MB
+                Maximum file size: 100MB
               </p>
             </div>
 
@@ -579,16 +612,16 @@ export default function Home() {
                 <span className="text-gray-400">Files:</span>
                 <span
                   className={`font-semibold ${
-                    files.length > 10 ? 'text-red-400' : 'text-white'
+                    files.length > 20 ? 'text-red-400' : 'text-white'
                   }`}
                 >
-                  {files.length} / 10
+                  {files.length} / 20
                 </span>
               </div>
-              {files.length > 10 && (
+              {files.length > 20 && (
                 <p className="text-red-400 text-xs">
-                  ⚠ Maximum 10 files per order. Please remove{' '}
-                  {files.length - 10} file(s).
+                  ⚠ Maximum 20 files per order. Please remove{' '}
+                  {files.length - 20} file(s).
                 </p>
               )}
               <div className="flex justify-between items-center text-sm">
@@ -614,7 +647,7 @@ export default function Home() {
                       : 'text-white'
                   }`}
                 >
-                  {(totalUploadSize / (1024 * 1024)).toFixed(2)} MB / 45MB
+                  {(totalUploadSize / (1024 * 1024)).toFixed(2)} MB / 500MB
                 </span>
               </div>
               {totalUploadSize > maxTotalSize && (
@@ -685,4 +718,5 @@ export default function Home() {
     </div>
   );
 }
+
 

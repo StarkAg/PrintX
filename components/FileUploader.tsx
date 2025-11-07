@@ -76,8 +76,8 @@ export default function FileUploader({
   const handleFileSelect = async (selectedFiles: FileList | null) => {
     if (!selectedFiles) return;
 
-    const maxFileSize = 25 * 1024 * 1024; // 25MB
-    const maxFiles = 10; // Limit to 10 files per upload (Google Drive quota safety)
+    const maxFileSize = 100 * 1024 * 1024; // 100MB (Google Drive limit)
+    const maxFiles = 20; // Increased to match Apps Script limit
     const newFiles: FileWithOptions[] = [];
     const skippedFiles: string[] = [];
 
@@ -98,7 +98,7 @@ export default function FileUploader({
       }
       if (file.size > maxFileSize) {
         skippedFiles.push(
-          `${file.name} (${(file.size / (1024 * 1024)).toFixed(2)}MB - exceeds 25MB limit)`
+          `${file.name} (${(file.size / (1024 * 1024)).toFixed(2)}MB - exceeds 100MB limit)`
         );
         continue;
       }
@@ -135,7 +135,7 @@ export default function FileUploader({
     // Show warning for skipped files
     if (skippedFiles.length > 0) {
       alert(
-        `Some files were skipped:\n${skippedFiles.join('\n')}\n\nMaximum file size is 25MB per file.`
+        `Some files were skipped:\n${skippedFiles.join('\n')}\n\nMaximum file size is 100MB per file.`
       );
     }
   };
@@ -211,7 +211,7 @@ export default function FileUploader({
           Accepted: PDF, PNG, JPG, JPEG
         </p>
         <p className="text-gray-500 text-xs mt-2">
-          Limits: 25MB per file, 45MB total, max 10 files per order
+          Limits: 100MB per file, 500MB total, max 20 files per order
         </p>
       </div>
 
@@ -254,7 +254,7 @@ export default function FileUploader({
                       </h3>
                       <p
                         className={`text-sm mt-1 ${
-                          fileWithOptions.file.size > 25 * 1024 * 1024
+                          fileWithOptions.file.size > 100 * 1024 * 1024
                             ? 'text-red-400'
                             : 'text-gray-medium'
                         }`}
@@ -262,7 +262,7 @@ export default function FileUploader({
                         {(fileWithOptions.file.size / (1024 * 1024)).toFixed(2)} MB
                         {fileWithOptions.file.size > 25 * 1024 * 1024 && (
                           <span className="ml-2 text-red-400">
-                            ⚠ Exceeds 25MB limit
+                            ⚠ Exceeds 100MB limit
                           </span>
                         )}
                       </p>
