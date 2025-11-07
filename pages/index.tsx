@@ -150,11 +150,9 @@ export default function Home() {
       // Generate order ID
       const orderId = Math.floor(10000 + Math.random() * 90000).toString();
       
-      // Upload files directly to Google Drive via Apps Script (bypasses Vercel's 4.5MB limit)
-      const webAppUrl = process.env.NEXT_PUBLIC_APPS_SCRIPT_WEB_APP_URL;
-      if (!webAppUrl) {
-        throw new Error('Apps Script Web App URL not configured. Please contact support.');
-      }
+      // Upload files via Vercel API proxy (handles CORS) which forwards to Apps Script
+      // Note: This still goes through Vercel, so we're limited by Vercel's 4.5MB request limit
+      // For larger files, we'd need to use a different approach (chunking, direct Drive API, etc.)
 
       // Helper function to convert File to base64 (handles large files)
       const fileToBase64 = (file: File): Promise<string> => {
@@ -203,12 +201,10 @@ export default function Home() {
         })),
       };
 
-      // Upload all files (including payment screenshot) to Apps Script in one request
-      // Note: Google Apps Script Web Apps require proper deployment settings for CORS
-      // Make sure the Web App is deployed with "Execute as: Me" and "Who has access: Anyone"
-      const uploadResponse = await fetch(webAppUrl, {
+      // Upload via Vercel API proxy (handles CORS) which forwards to Apps Script
+      // The proxy handles CORS issues with Google Apps Script Web Apps
+      const uploadResponse = await fetch('/api/proxy-upload', {
         method: 'POST',
-        mode: 'cors', // Explicitly set CORS mode
         headers: {
           'Content-Type': 'application/json',
         },
