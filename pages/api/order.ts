@@ -123,8 +123,8 @@ export default async function handler(
       const form = formidable({
         uploadDir: uploadsDir,
         keepExtensions: true,
-        maxFileSize: 20 * 1024 * 1024, // 20MB per file
-        maxTotalFileSize: 50 * 1024 * 1024, // 50MB total files
+        maxFileSize: 50 * 1024 * 1024, // 50MB per file
+        maxTotalFileSize: 100 * 1024 * 1024, // 100MB total files
         multiples: true, // Allow multiple files
       });
 
@@ -303,7 +303,7 @@ export default async function handler(
           .json({
             error: 'Payload too large',
             message:
-              'Uploaded files exceed the allowed size. Please keep total files under 50MB or upload fewer files.',
+              'Uploaded files exceed the allowed size. Please keep individual files under 50MB and total upload under 100MB. Try uploading fewer files or compress your files.',
           });
         return;
       }

@@ -112,16 +112,28 @@ export default function Home() {
       });
 
       if (!response.ok) {
-        throw new Error('Failed to submit order');
+        const errorData = await response.json().catch(() => ({}));
+        if (response.status === 413) {
+          throw new Error(
+            errorData.message ||
+              'File size too large. Please keep files under 50MB each and total under 100MB.'
+          );
+        }
+        throw new Error(
+          errorData.message || errorData.error || 'Failed to submit order'
+        );
       }
 
       const result = await response.json();
       setOrderId(result.orderId);
       setOrderSubmitted(true);
       console.log('Order submitted:', result);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error submitting order:', error);
-      alert('Failed to submit order. Please try again.');
+      alert(
+        error?.message ||
+          'Failed to submit order. Please check file sizes and try again.'
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -167,7 +179,7 @@ export default function Home() {
       <Head>
         <title>PrintX - Simple Print Ordering</title>
         <meta name="description" content="Order prints easily with PrintX" />
-        <link rel="icon" href="/favicon.ico" />
+        <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
       </Head>
 
       <main className="container mx-auto px-4 py-8 max-w-4xl">
