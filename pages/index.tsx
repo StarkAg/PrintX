@@ -204,8 +204,11 @@ export default function Home() {
       };
 
       // Upload all files (including payment screenshot) to Apps Script in one request
+      // Note: Google Apps Script Web Apps require proper deployment settings for CORS
+      // Make sure the Web App is deployed with "Execute as: Me" and "Who has access: Anyone"
       const uploadResponse = await fetch(webAppUrl, {
         method: 'POST',
+        mode: 'cors', // Explicitly set CORS mode
         headers: {
           'Content-Type': 'application/json',
         },

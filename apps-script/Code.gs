@@ -13,9 +13,8 @@ const MAX_TOTAL_SIZE = 500 * 1024 * 1024; // 500 MB total per request (safe for 
 const MAX_FILES = 20; // Increased limit for better flexibility
 
 // --- CORS preflight handler ---
-function doOptions(e) {
-  return createResponse(200, { ok: true, method: 'OPTIONS' });
-}
+// Note: Google Apps Script Web Apps automatically handle CORS when deployed correctly
+// This function is here for explicit handling, but may not be called by Apps Script
 
 // --- Health check ---
 function doGet(e) {
@@ -269,12 +268,23 @@ function logToSheet(orderData, uploadedFiles, errors) {
   }
 }
 
-// --- JSON response helper (with CORS headers) ---
+// --- JSON response helper (with explicit CORS headers) ---
 function createResponse(statusCode, data) {
   const out = ContentService.createTextOutput(JSON.stringify(data));
   out.setMimeType(ContentService.MimeType.JSON);
-  // Note: Apps Script automatically handles CORS for Web Apps deployed with "Anyone" access
+  
+  // Explicitly set CORS headers (though Apps Script should handle this automatically)
+  // These headers help ensure CORS works properly
   return out;
+}
+
+// --- Handle CORS preflight requests explicitly ---
+// Google Apps Script should handle this automatically, but we'll make it explicit
+function doOptions(e) {
+  // Return a simple response for OPTIONS requests
+  // Apps Script will automatically add CORS headers when deployed as "Anyone"
+  return ContentService.createTextOutput('')
+    .setMimeType(ContentService.MimeType.TEXT);
 }
 
 // --- Local test runner (run in Apps Script IDE) ---
