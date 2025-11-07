@@ -145,12 +145,28 @@ export default async function handler(
         uploadDir: uploadsDir,
         keepExtensions: true,
         maxFileSize: 25 * 1024 * 1024, // 25MB per file (to stay well under 50MB total)
-        maxTotalFileSize: 45 * 1024 * 1024, // 45MB total files (safety margin for Vercel free tier)
+        maxTotalFileSize: 50 * 1024 * 1024, // 50MB total files (Vercel limit, includes all FormData)
         multiples: true, // Allow multiple files
       });
 
       // Parse the form - this will consume the request stream
-      const [fields, files] = await form.parse(req);
+      let parsedResult;
+      try {
+        parsedResult = await form.parse(req);
+      } catch (parseError: any) {
+        // Handle formidable parsing errors (file size limits, etc.)
+        if (parseError?.httpCode === 413 || parseError?.code === 1009 || parseError?.message?.includes('maxFileSize') || parseError?.message?.includes('maxTotalFileSize')) {
+          console.error('Formidable parse error (file size limit):', parseError);
+          res.status(413).json({
+            error: 'File size limit exceeded',
+            message: parseError?.message || 'Uploaded files exceed the allowed size limit. Maximum: 25MB per file, 50MB total. Please compress your files or upload fewer files at a time.',
+          });
+          return;
+        }
+        throw parseError;
+      }
+      
+      const [fields, files] = parsedResult;
       
       // Type assertion for formidable files and fields
       const typedFields = fields as Record<string, string[]>;
@@ -159,22 +175,66 @@ export default async function handler(
         FormidableFile | FormidableFile[]
       >;
 
-      // Parse order data from form fields
-      const parsedOrderData = JSON.parse(
-        typedFields.orderData?.[0] || '{}'
-      );
-      const paymentScreenshotField = typedFiles.paymentScreenshot;
-      const paymentScreenshot = Array.isArray(paymentScreenshotField)
-        ? paymentScreenshotField[0]
-        : paymentScreenshotField;
-
-      // Handle file uploads
+      // Validate file sizes after parsing (formidable might not catch all cases)
       const filesField = typedFiles.files;
       const uploadedFiles = Array.isArray(filesField)
         ? filesField
         : filesField
         ? [filesField]
         : [];
+      
+      const maxFileSize = 25 * 1024 * 1024; // 25MB
+      let totalFilesSize = 0;
+      
+      for (const file of uploadedFiles) {
+        if (file.filepath) {
+          const stats = fs.statSync(file.filepath);
+          const fileSize = stats.size;
+          totalFilesSize += fileSize;
+          
+          if (fileSize > maxFileSize) {
+            res.status(413).json({
+              error: 'File size limit exceeded',
+              message: `File "${file.originalFilename || 'unknown'}" is too large (${(fileSize / (1024 * 1024)).toFixed(2)}MB). Maximum file size is 25MB per file.`,
+            });
+            return;
+          }
+        }
+      }
+      
+      // Check payment screenshot size
+      const paymentScreenshotField = typedFiles.paymentScreenshot;
+      const paymentScreenshot = Array.isArray(paymentScreenshotField)
+        ? paymentScreenshotField[0]
+        : paymentScreenshotField;
+      
+      if (paymentScreenshot?.filepath) {
+        const screenshotStats = fs.statSync(paymentScreenshot.filepath);
+        const screenshotSize = screenshotStats.size;
+        totalFilesSize += screenshotSize;
+        
+        if (screenshotSize > maxFileSize) {
+          res.status(413).json({
+            error: 'File size limit exceeded',
+            message: `Payment screenshot is too large (${(screenshotSize / (1024 * 1024)).toFixed(2)}MB). Maximum file size is 25MB.`,
+          });
+          return;
+        }
+      }
+      
+      const maxTotalSize = 50 * 1024 * 1024; // 50MB (Vercel limit)
+      if (totalFilesSize > maxTotalSize) {
+        res.status(413).json({
+          error: 'File size limit exceeded',
+          message: `Total file size is too large (${(totalFilesSize / (1024 * 1024)).toFixed(2)}MB). Maximum total size is 50MB. Please compress your files or upload fewer files.`,
+        });
+        return;
+      }
+
+      // Parse order data from form fields
+      const parsedOrderData = JSON.parse(
+        typedFields.orderData?.[0] || '{}'
+      );
       const fileData = parsedOrderData.files || [];
 
       // Generate order ID first (needed for Apps Script logging)

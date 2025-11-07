@@ -156,13 +156,25 @@ export default function Home() {
       // Add payment screenshot
       formData.append('paymentScreenshot', paymentScreenshot);
 
-      // Add order data with thumbnail data URLs
+      // Add order data (thumbnails are optional to reduce payload size)
+      // Only include thumbnail if it's small (under 500KB when base64 encoded)
       const orderData = {
-        files: files.map((f) => ({
-          name: f.file.name,
-          options: f.options,
-          thumbnail: f.preview, // Include thumbnail data URL
-        })),
+        files: files.map((f) => {
+          const fileData: any = {
+            name: f.file.name,
+            options: f.options,
+          };
+          // Only include thumbnail if it exists and is reasonably small
+          // Base64 encoding increases size by ~33%, so limit to ~375KB original size
+          if (f.preview) {
+            const base64Size = (f.preview.length * 3) / 4; // Approximate decoded size
+            if (base64Size < 500 * 1024) { // Only include if under 500KB
+              fileData.thumbnail = f.preview;
+            }
+            // Otherwise, thumbnail will be generated server-side from the file
+          }
+          return fileData;
+        }),
         total: calculatedTotal,
         vpa: vpaDisplay,
       };
