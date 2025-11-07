@@ -5,6 +5,7 @@ import path from 'path';
 import formidable from 'formidable';
 import type { File as FormidableFile } from 'formidable';
 import { uploadToDrive } from '../../lib/drive';
+import { uploadBuffersToDriveViaAppsScript } from '../../lib/apps-script';
 
 // Disable default body parser to handle file uploads
 export const config = {
@@ -140,7 +141,7 @@ export default async function handler(
       >;
 
       // Parse order data from form fields
-      const orderData = JSON.parse(
+      const parsedOrderData = JSON.parse(
         typedFields.orderData?.[0] || '{}'
       );
       const paymentScreenshotField = typedFiles.paymentScreenshot;
@@ -155,94 +156,267 @@ export default async function handler(
         : filesField
         ? [filesField]
         : [];
-      const fileData = orderData.files || [];
+      const fileData = parsedOrderData.files || [];
 
-      // Upload files to Drive (or get placeholders) and generate thumbnails
-      const filesWithDriveIds = await Promise.all(
-        uploadedFiles.map(async (uploadedFile, index) => {
-          const fileInfo = fileData[index];
-          if (!fileInfo || !uploadedFile) return null;
+      // Generate order ID first (needed for Apps Script logging)
+      const orderId = generateOrderId();
 
-          try {
-            const filepath = uploadedFile.filepath;
-            const originalFilename = uploadedFile.originalFilename || null;
+      // Upload files to Drive via Apps Script (preferred) or fallback to direct Drive API
+      const useAppsScript = !!process.env.APPS_SCRIPT_WEB_APP_URL;
+      let filesWithDriveIds: Array<{
+        name: string;
+        options: {
+          format: string;
+          color: string;
+          paperGSM: string;
+          binding?: string;
+        };
+        driveId: string;
+        thumbnailPath?: string;
+      } | null>;
 
-            if (!filepath) {
-              console.error(`File ${index} has no filepath`);
-              return null;
-            }
+      if (useAppsScript) {
+        // Use Apps Script for upload (simpler, no OAuth needed)
+        try {
+          // Prepare files for Apps Script upload
+          const filesForUpload = uploadedFiles
+            .map((uploadedFile, index) => {
+              const fileInfo = fileData[index];
+              if (!fileInfo || !uploadedFile) return null;
 
-            const fileBuffer = fs.readFileSync(filepath);
-            const driveResult = await uploadToDrive(
-              fileBuffer,
-              originalFilename || fileInfo.name
-            );
+              const filepath = uploadedFile.filepath;
+              if (!filepath || !fs.existsSync(filepath)) return null;
 
-            // Save thumbnail (from client-side generated data URL)
-            let thumbnailPath: string | undefined;
-            const fileExt = path.extname(originalFilename || fileInfo.name).toLowerCase();
-            const isImage = ['.png', '.jpg', '.jpeg'].includes(fileExt);
-            const isPDF = fileExt === '.pdf';
-            
-            // If client provided a thumbnail (data URL), save it
-            if (fileInfo.thumbnail && (isImage || isPDF)) {
+              const fileBuffer = fs.readFileSync(filepath);
+              const originalFilename = uploadedFile.originalFilename || fileInfo.name;
+
+              return {
+                buffer: fileBuffer,
+                filename: originalFilename,
+                mimeType: uploadedFile.mimetype || 'application/octet-stream',
+                size: fileBuffer.length,
+                fileInfo,
+              };
+            })
+            .filter((f) => f !== null) as Array<{
+            buffer: Buffer;
+            filename: string;
+            mimeType: string;
+            size: number;
+            fileInfo: any;
+          }>;
+
+          if (filesForUpload.length === 0) {
+            throw new Error('No valid files to upload');
+          }
+
+          // Upload via Apps Script
+          const orderDataForUpload = {
+            orderId,
+            total: parsedOrderData.total || 0,
+            vpa: parsedOrderData.vpa || 'printx@yourbank',
+          };
+
+          const driveResults = await uploadBuffersToDriveViaAppsScript(
+            filesForUpload.map((f) => ({
+              buffer: f.buffer,
+              filename: f.filename,
+              mimeType: f.mimeType,
+              size: f.size,
+            })),
+            orderDataForUpload
+          );
+
+          // Map results back to files with thumbnails
+          filesWithDriveIds = await Promise.all(
+            uploadedFiles.map(async (uploadedFile, index) => {
+              const fileInfo = fileData[index];
+              if (!fileInfo || !uploadedFile) return null;
+
               try {
-                const thumbnailsDir = getThumbnailsDir();
-                const thumbnailExt = isPDF ? '.png' : fileExt;
-                const thumbnailFilename = `${uuidv4()}_thumb${thumbnailExt}`;
-                thumbnailPath = path.join('uploads', 'thumbnails', thumbnailFilename);
-                const fullThumbnailPath = path.join(process.cwd(), 'public', thumbnailPath);
-                
-                // Convert data URL to buffer and save
-                if (fileInfo.thumbnail.startsWith('data:')) {
-                  const base64Data = fileInfo.thumbnail.split(',')[1];
-                  const thumbnailBuffer = Buffer.from(base64Data, 'base64');
-                  fs.writeFileSync(fullThumbnailPath, thumbnailBuffer);
-                } else {
-                  // If it's already a file path or URL, handle accordingly
-                  fs.writeFileSync(fullThumbnailPath, fileBuffer);
+                const filepath = uploadedFile.filepath;
+                const originalFilename = uploadedFile.originalFilename || null;
+
+                if (!filepath) {
+                  console.error(`File ${index} has no filepath`);
+                  return null;
                 }
-              } catch (thumbError) {
-                console.error(`Error saving thumbnail for file ${index}:`, thumbError);
-              }
-            } else if (isImage) {
-              // Fallback: For images without client thumbnail, save the original as thumbnail
-              try {
-                const thumbnailsDir = getThumbnailsDir();
-                const thumbnailFilename = `${uuidv4()}_thumb${fileExt}`;
-                thumbnailPath = path.join('uploads', 'thumbnails', thumbnailFilename);
-                const fullThumbnailPath = path.join(process.cwd(), 'public', thumbnailPath);
-                fs.writeFileSync(fullThumbnailPath, fileBuffer);
-              } catch (thumbError) {
-                console.error(`Error generating thumbnail for file ${index}:`, thumbError);
-              }
-            }
 
-            // Clean up temp file
-            if (fs.existsSync(filepath)) {
-              fs.unlinkSync(filepath);
-            }
+                const driveResult = driveResults[index];
+                if (!driveResult) {
+                  console.error(`No drive result for file ${index}`);
+                  return null;
+                }
 
+                // Save thumbnail (from client-side generated data URL)
+                const fileBuffer = fs.readFileSync(filepath);
+                let thumbnailPath: string | undefined;
+                const fileExt = path.extname(originalFilename || fileInfo.name).toLowerCase();
+                const isImage = ['.png', '.jpg', '.jpeg'].includes(fileExt);
+                const isPDF = fileExt === '.pdf';
+
+                if (fileInfo.thumbnail && (isImage || isPDF)) {
+                  try {
+                    const thumbnailsDir = getThumbnailsDir();
+                    const thumbnailExt = isPDF ? '.png' : fileExt;
+                    const thumbnailFilename = `${uuidv4()}_thumb${thumbnailExt}`;
+                    thumbnailPath = path.join('uploads', 'thumbnails', thumbnailFilename);
+                    const fullThumbnailPath = path.join(process.cwd(), 'public', thumbnailPath);
+
+                    if (fileInfo.thumbnail.startsWith('data:')) {
+                      const base64Data = fileInfo.thumbnail.split(',')[1];
+                      const thumbnailBuffer = Buffer.from(base64Data, 'base64');
+                      fs.writeFileSync(fullThumbnailPath, thumbnailBuffer);
+                    } else {
+                      fs.writeFileSync(fullThumbnailPath, fileBuffer);
+                    }
+                  } catch (thumbError) {
+                    console.error(`Error saving thumbnail for file ${index}:`, thumbError);
+                  }
+                } else if (isImage) {
+                  try {
+                    const thumbnailsDir = getThumbnailsDir();
+                    const thumbnailFilename = `${uuidv4()}_thumb${fileExt}`;
+                    thumbnailPath = path.join('uploads', 'thumbnails', thumbnailFilename);
+                    const fullThumbnailPath = path.join(process.cwd(), 'public', thumbnailPath);
+                    fs.writeFileSync(fullThumbnailPath, fileBuffer);
+                  } catch (thumbError) {
+                    console.error(`Error generating thumbnail for file ${index}:`, thumbError);
+                  }
+                }
+
+                // Clean up temp file
+                if (fs.existsSync(filepath)) {
+                  fs.unlinkSync(filepath);
+                }
+
+                return {
+                  name: fileInfo.name,
+                  options: fileInfo.options,
+                  driveId: driveResult.fileId,
+                  thumbnailPath,
+                };
+              } catch (error) {
+                console.error(`Error processing file ${index}:`, error);
+                if (uploadedFile.filepath && fs.existsSync(uploadedFile.filepath)) {
+                  try {
+                    fs.unlinkSync(uploadedFile.filepath);
+                  } catch (unlinkError) {
+                    console.error('Error cleaning up file:', unlinkError);
+                  }
+                }
+                return null;
+              }
+            })
+          );
+        } catch (appsScriptError: any) {
+          console.error('Apps Script upload failed, falling back to placeholder:', appsScriptError);
+          // Fallback to placeholder mode
+          filesWithDriveIds = uploadedFiles.map((uploadedFile, index) => {
+            const fileInfo = fileData[index];
+            if (!fileInfo || !uploadedFile) return null;
             return {
               name: fileInfo.name,
               options: fileInfo.options,
-              driveId: driveResult.fileId,
-              thumbnailPath,
+              driveId: `error_${Date.now()}_${fileInfo.name}`,
+              thumbnailPath: undefined,
             };
-          } catch (error) {
-            console.error(`Error processing file ${index}:`, error);
-            // Clean up temp file even on error
-            if (uploadedFile.filepath && fs.existsSync(uploadedFile.filepath)) {
-              try {
-                fs.unlinkSync(uploadedFile.filepath);
-              } catch (unlinkError) {
-                console.error('Error cleaning up file:', unlinkError);
+          });
+        }
+      } else {
+        // Fallback: Use direct Drive API or placeholder
+        filesWithDriveIds = (await Promise.all(
+          uploadedFiles.map(async (uploadedFile, index) => {
+            const fileInfo = fileData[index];
+            if (!fileInfo || !uploadedFile) return null as any;
+
+            try {
+              const filepath = uploadedFile.filepath;
+              const originalFilename = uploadedFile.originalFilename || null;
+
+              if (!filepath) {
+                console.error(`File ${index} has no filepath`);
+                return null;
               }
+
+              const fileBuffer = fs.readFileSync(filepath);
+              const driveResult = await uploadToDrive(
+                fileBuffer,
+                originalFilename || fileInfo.name,
+                orderId
+              );
+
+              // Save thumbnail (from client-side generated data URL)
+              let thumbnailPath: string | undefined;
+              const fileExt = path.extname(originalFilename || fileInfo.name).toLowerCase();
+              const isImage = ['.png', '.jpg', '.jpeg'].includes(fileExt);
+              const isPDF = fileExt === '.pdf';
+
+              if (fileInfo.thumbnail && (isImage || isPDF)) {
+                try {
+                  const thumbnailsDir = getThumbnailsDir();
+                  const thumbnailExt = isPDF ? '.png' : fileExt;
+                  const thumbnailFilename = `${uuidv4()}_thumb${thumbnailExt}`;
+                  thumbnailPath = path.join('uploads', 'thumbnails', thumbnailFilename);
+                  const fullThumbnailPath = path.join(process.cwd(), 'public', thumbnailPath);
+
+                  if (fileInfo.thumbnail.startsWith('data:')) {
+                    const base64Data = fileInfo.thumbnail.split(',')[1];
+                    const thumbnailBuffer = Buffer.from(base64Data, 'base64');
+                    fs.writeFileSync(fullThumbnailPath, thumbnailBuffer);
+                  } else {
+                    fs.writeFileSync(fullThumbnailPath, fileBuffer);
+                  }
+                } catch (thumbError) {
+                  console.error(`Error saving thumbnail for file ${index}:`, thumbError);
+                }
+              } else if (isImage) {
+                try {
+                  const thumbnailsDir = getThumbnailsDir();
+                  const thumbnailFilename = `${uuidv4()}_thumb${fileExt}`;
+                  thumbnailPath = path.join('uploads', 'thumbnails', thumbnailFilename);
+                  const fullThumbnailPath = path.join(process.cwd(), 'public', thumbnailPath);
+                  fs.writeFileSync(fullThumbnailPath, fileBuffer);
+                } catch (thumbError) {
+                  console.error(`Error generating thumbnail for file ${index}:`, thumbError);
+                }
+              }
+
+              // Clean up temp file
+              if (fs.existsSync(filepath)) {
+                fs.unlinkSync(filepath);
+              }
+
+              return {
+                name: fileInfo.name,
+                options: fileInfo.options,
+                driveId: driveResult.fileId,
+                thumbnailPath,
+              };
+            } catch (error) {
+              console.error(`Error processing file ${index}:`, error);
+              if (uploadedFile.filepath && fs.existsSync(uploadedFile.filepath)) {
+                try {
+                  fs.unlinkSync(uploadedFile.filepath);
+                } catch (unlinkError) {
+                  console.error('Error cleaning up file:', unlinkError);
+                }
+              }
+              return null as any;
             }
-            return null;
-          }
-        })
-      );
+          })
+        )) as Array<{
+          name: string;
+          options: {
+            format: string;
+            color: string;
+            paperGSM: string;
+            binding?: string;
+          };
+          driveId: string;
+          thumbnailPath?: string;
+        } | null>;
+      }
 
       // Handle payment screenshot
       let paymentScreenshotDriveId = 'placeholder';
@@ -280,10 +454,10 @@ export default async function handler(
 
       // Create order
       const order: Order = {
-        orderId: generateOrderId(),
+        orderId,
         files: filesWithDriveIds.filter((f) => f !== null) as Order['files'],
-        total: orderData.total || 0,
-        vpa: orderData.vpa || 'printx@yourbank',
+        total: parsedOrderData.total || 0,
+        vpa: parsedOrderData.vpa || 'printx@yourbank',
         paymentScreenshotDriveId,
         paymentScreenshotPath,
         createdAt: new Date().toISOString(),

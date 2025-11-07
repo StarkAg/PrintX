@@ -77,8 +77,18 @@ export default function FileUploader({
     if (!selectedFiles) return;
 
     const maxFileSize = 25 * 1024 * 1024; // 25MB
+    const maxFiles = 10; // Limit to 10 files per upload (Google Drive quota safety)
     const newFiles: FileWithOptions[] = [];
     const skippedFiles: string[] = [];
+
+    // Check total file count limit
+    const totalFilesAfterAdd = files.length + selectedFiles.length;
+    if (totalFilesAfterAdd > maxFiles) {
+      alert(
+        `Maximum ${maxFiles} files allowed per order. You currently have ${files.length} file(s) and tried to add ${selectedFiles.length}. Please remove some files or create a new order.`
+      );
+      return;
+    }
 
     for (let i = 0; i < selectedFiles.length; i++) {
       const file = selectedFiles[i];
@@ -201,7 +211,7 @@ export default function FileUploader({
           Accepted: PDF, PNG, JPG, JPEG
         </p>
         <p className="text-gray-500 text-xs mt-2">
-          Limits: 25MB per file, 45MB total
+          Limits: 25MB per file, 45MB total, max 10 files per order
         </p>
       </div>
 

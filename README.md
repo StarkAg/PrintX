@@ -1,4 +1,4 @@
-# PrintX Simple
+# PrintX
 
 A minimal Next.js + TypeScript MVP for print ordering with a sleek black & white theme. This is a production-light shell for local testing.
 

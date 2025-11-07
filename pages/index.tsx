@@ -81,6 +81,15 @@ export default function Home() {
       return;
     }
 
+    // Check file count limit (Google Drive quota safety)
+    const maxFiles = 10;
+    if (files.length > maxFiles) {
+      setError(
+        `Maximum ${maxFiles} files allowed per order. Please remove ${files.length - maxFiles} file(s) and try again.`
+      );
+      return;
+    }
+
     // Check file sizes before uploading
     const totalSize = files.reduce((sum, f) => sum + f.file.size, 0);
     const maxFileSize = 25 * 1024 * 1024; // 25MB
@@ -217,7 +226,7 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-black text-white">
       <Head>
-        <title>PrintX - Simple Print Ordering</title>
+        <title>PrintX</title>
         <meta name="description" content="Order prints easily with PrintX" />
         <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
       </Head>
@@ -537,8 +546,24 @@ export default function Home() {
               </p>
             </div>
 
-            {/* File Size Info */}
-            <div className="bg-card-hover border border-gray rounded-lg p-4">
+            {/* File Count & Size Info */}
+            <div className="bg-card-hover border border-gray rounded-lg p-4 space-y-3">
+              <div className="flex justify-between items-center text-sm">
+                <span className="text-gray-400">Files:</span>
+                <span
+                  className={`font-semibold ${
+                    files.length > 10 ? 'text-red-400' : 'text-white'
+                  }`}
+                >
+                  {files.length} / 10
+                </span>
+              </div>
+              {files.length > 10 && (
+                <p className="text-red-400 text-xs">
+                  ⚠ Maximum 10 files per order. Please remove{' '}
+                  {files.length - 10} file(s).
+                </p>
+              )}
               <div className="flex justify-between items-center text-sm">
                 <span className="text-gray-400">Total file size:</span>
                 <span
@@ -558,7 +583,7 @@ export default function Home() {
               </div>
               {files.reduce((sum, f) => sum + f.file.size, 0) >
                 45 * 1024 * 1024 && (
-                <p className="text-red-400 text-xs mt-2">
+                <p className="text-red-400 text-xs">
                   ⚠ Total size exceeds limit. Please remove some files.
                 </p>
               )}
@@ -603,6 +628,7 @@ export default function Home() {
                 disabled={
                   isSubmitting ||
                   !paymentScreenshot ||
+                  files.length > 10 ||
                   files.reduce((sum, f) => sum + f.file.size, 0) >
                     45 * 1024 * 1024 ||
                   files.some((f) => f.file.size > 25 * 1024 * 1024) ||
