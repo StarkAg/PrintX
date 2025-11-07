@@ -19,11 +19,14 @@ const MAX_FILES = 50; // Increased limit for more files
 
 // --- Health check ---
 function doGet(e) {
+  // This endpoint helps verify CORS is working
+  // Visit the Web App URL in a browser - should return JSON
   return createResponse(200, {
     status: 'ok',
     service: 'PrintX Drive Upload',
     timestamp: new Date().toISOString(),
-    cors: 'enabled'
+    cors: 'enabled',
+    message: 'If you see this, Apps Script is working. Make sure deployment is set to "Anyone" access for CORS.'
   });
 }
 
