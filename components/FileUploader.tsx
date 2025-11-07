@@ -76,8 +76,8 @@ export default function FileUploader({
   const handleFileSelect = async (selectedFiles: FileList | null) => {
     if (!selectedFiles) return;
 
-    const maxFileSize = 100 * 1024 * 1024; // 100MB (Google Drive limit)
-    const maxFiles = 20; // Increased to match Apps Script limit
+    const maxFileSize = 75 * 1024 * 1024; // 75MB (becomes ~100MB when base64 encoded)
+    const maxFiles = 50; // Increased limit
     const newFiles: FileWithOptions[] = [];
     const skippedFiles: string[] = [];
 
@@ -98,7 +98,7 @@ export default function FileUploader({
       }
       if (file.size > maxFileSize) {
         skippedFiles.push(
-          `${file.name} (${(file.size / (1024 * 1024)).toFixed(2)}MB - exceeds 100MB limit)`
+          `${file.name} (${(file.size / (1024 * 1024)).toFixed(2)}MB - exceeds 75MB limit)`
         );
         continue;
       }
@@ -135,7 +135,7 @@ export default function FileUploader({
     // Show warning for skipped files
     if (skippedFiles.length > 0) {
       alert(
-        `Some files were skipped:\n${skippedFiles.join('\n')}\n\nMaximum file size is 100MB per file.`
+        `Some files were skipped:\n${skippedFiles.join('\n')}\n\nMaximum file size is 75MB per file.`
       );
     }
   };
@@ -192,11 +192,14 @@ export default function FileUploader({
       >
         <input
           ref={fileInputRef}
+          id="file-upload-input"
+          name="files"
           type="file"
           multiple
           accept=".pdf,.png,.jpg,.jpeg"
           onChange={(e) => handleFileSelect(e.target.files)}
           className="hidden"
+          aria-label="Upload files"
         />
         <p className="text-white text-xl mb-4">
           Drag and drop files here, or click to select
@@ -211,7 +214,7 @@ export default function FileUploader({
           Accepted: PDF, PNG, JPG, JPEG
         </p>
         <p className="text-gray-500 text-xs mt-2">
-          Limits: 100MB per file, 500MB total, max 20 files per order
+          Limits: 75MB per file, 500MB total, max 50 files per order
         </p>
       </div>
 
@@ -254,15 +257,15 @@ export default function FileUploader({
                       </h3>
                       <p
                         className={`text-sm mt-1 ${
-                          fileWithOptions.file.size > 100 * 1024 * 1024
+                          fileWithOptions.file.size > 75 * 1024 * 1024
                             ? 'text-red-400'
                             : 'text-gray-medium'
                         }`}
                       >
                         {(fileWithOptions.file.size / (1024 * 1024)).toFixed(2)} MB
-                        {fileWithOptions.file.size > 100 * 1024 * 1024 && (
+                        {fileWithOptions.file.size > 75 * 1024 * 1024 && (
                           <span className="ml-2 text-red-400">
-                            ⚠ Exceeds 100MB limit
+                            ⚠ Exceeds 75MB limit
                           </span>
                         )}
                       </p>
@@ -283,25 +286,36 @@ export default function FileUploader({
                 {/* Options Panel */}
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-4 border-t border-gray">
                   <div>
-                    <label className="block text-sm text-gray-medium mb-1">
+                    <label 
+                      htmlFor={`format-${index}`}
+                      className="block text-sm text-gray-medium mb-1"
+                    >
                       Format
                     </label>
                     <select
+                      id={`format-${index}`}
+                      name={`format-${index}`}
                       value={fileWithOptions.options.format}
                       onChange={(e) =>
                         updateFileOptions(index, { format: e.target.value })
                       }
                       className="w-full bg-card-hover border border-gray text-white rounded px-3 py-2"
+                      aria-label="Select paper format"
                     >
                       <option value="A4">A4</option>
                     </select>
                   </div>
 
                   <div>
-                    <label className="block text-sm text-gray-medium mb-1">
+                    <label 
+                      htmlFor={`color-${index}`}
+                      className="block text-sm text-gray-medium mb-1"
+                    >
                       Color
                     </label>
                     <select
+                      id={`color-${index}`}
+                      name={`color-${index}`}
                       value={fileWithOptions.options.color}
                       onChange={(e) =>
                         updateFileOptions(index, {
@@ -309,6 +323,7 @@ export default function FileUploader({
                         })
                       }
                       className="w-full bg-card-hover border border-gray text-white rounded px-3 py-2"
+                      aria-label="Select color option"
                     >
                       <option value="B&W">B&W</option>
                       <option value="Color">Color</option>
@@ -316,10 +331,15 @@ export default function FileUploader({
                   </div>
 
                   <div>
-                    <label className="block text-sm text-gray-medium mb-1">
+                    <label 
+                      htmlFor={`paper-gsm-${index}`}
+                      className="block text-sm text-gray-medium mb-1"
+                    >
                       Paper GSM
                     </label>
                     <select
+                      id={`paper-gsm-${index}`}
+                      name={`paper-gsm-${index}`}
                       value={fileWithOptions.options.paperGSM}
                       onChange={(e) =>
                         updateFileOptions(index, {
@@ -327,6 +347,7 @@ export default function FileUploader({
                         })
                       }
                       className="w-full bg-card-hover border border-gray text-white rounded px-3 py-2"
+                      aria-label="Select paper GSM"
                     >
                       <option value="40gsm">40gsm</option>
                       <option value="55gsm">55gsm</option>
@@ -335,10 +356,15 @@ export default function FileUploader({
 
                   {fileWithOptions.file.type === 'application/pdf' && (
                     <div>
-                      <label className="block text-sm text-gray-medium mb-1">
+                      <label 
+                        htmlFor={`binding-${index}`}
+                        className="block text-sm text-gray-medium mb-1"
+                      >
                         Binding
                       </label>
                       <select
+                        id={`binding-${index}`}
+                        name={`binding-${index}`}
                         value={fileWithOptions.options.binding || 'None'}
                         onChange={(e) =>
                           updateFileOptions(index, {
@@ -349,6 +375,7 @@ export default function FileUploader({
                           })
                         }
                         className="w-full bg-card-hover border border-gray text-white rounded px-3 py-2"
+                        aria-label="Select binding option"
                       >
                         <option value="None">None</option>
                         <option value="White binding">White binding</option>

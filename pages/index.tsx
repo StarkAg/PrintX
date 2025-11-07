@@ -90,8 +90,8 @@ export default function Home() {
       return;
     }
 
-    // Check file count limit (Google Drive quota safety)
-    const maxFiles = 20; // Increased to match Apps Script limit
+    // Check file count limit
+    const maxFiles = 50; // Increased limit
     if (files.length > maxFiles) {
       setError(
         `Maximum ${maxFiles} files allowed per order. Please remove ${files.length - maxFiles} file(s) and try again.`
@@ -99,10 +99,9 @@ export default function Home() {
       return;
     }
 
-    // Check file sizes before uploading (matching Google Drive limits)
-    // Google Drive: 5TB per file, 750GB/day quota
-    // Apps Script: 100MB per file, 500MB total (safe execution time)
-    const maxFileSize = 100 * 1024 * 1024; // 100MB per file (Google Drive limit)
+    // Check file sizes before uploading
+    // Apps Script: 75MB per file (becomes ~100MB when base64 encoded), 500MB total
+    const maxFileSize = 75 * 1024 * 1024; // 75MB per file (becomes ~100MB when base64 encoded)
     const maxTotalSize = 500 * 1024 * 1024; // 500MB total (includes all files + payment screenshot)
 
     // Check individual file sizes
@@ -112,7 +111,7 @@ export default function Home() {
           `File "${fileWithOptions.file.name}" is too large (${(
             fileWithOptions.file.size /
             (1024 * 1024)
-          ).toFixed(2)}MB). Maximum file size is 100MB per file.`
+          ).toFixed(2)}MB). Maximum file size is 75MB per file.`
         );
         return;
       }
@@ -124,7 +123,7 @@ export default function Home() {
         `Payment screenshot is too large (${(
           paymentScreenshot.size /
           (1024 * 1024)
-        ).toFixed(2)}MB). Maximum file size is 100MB. Please compress the screenshot.`
+        ).toFixed(2)}MB). Maximum file size is 75MB. Please compress the screenshot.`
       );
       return;
     }
@@ -150,98 +149,72 @@ export default function Home() {
       // Generate order ID
       const orderId = Math.floor(10000 + Math.random() * 90000).toString();
       
-      // Upload files via Vercel API proxy (handles CORS) which forwards to Apps Script
-      // Note: This still goes through Vercel, so we're limited by Vercel's 4.5MB request limit
-      // For larger files, we'd need to use a different approach (chunking, direct Drive API, etc.)
+      // Upload files directly to Apps Script (bypasses Vercel 4.5MB limit!)
+      // Apps Script can handle up to 100MB per file when uploaded directly
+      // CORS should work if Apps Script is deployed with "Anyone" access
+      
+      // Import the upload function
+      const { uploadBatchToDriveViaAppsScript } = await import('../lib/apps-script');
 
-      // Helper function to convert File to base64 (handles large files)
-      const fileToBase64 = (file: File): Promise<string> => {
-        return new Promise((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = () => {
-            const result = reader.result as string;
-            // Remove data URL prefix (e.g., "data:image/png;base64,")
-            const base64 = result.split(',')[1] || result;
-            resolve(base64);
-          };
-          reader.onerror = reject;
-          reader.readAsDataURL(file);
-        });
-      };
-
-      // Convert all files (including payment screenshot) to base64
-      const allFiles: Array<{ file: File; options?: any; isPaymentScreenshot?: boolean }> = [
-        ...files.map(f => ({ file: f.file, options: f.options })),
-        { file: paymentScreenshot, isPaymentScreenshot: true },
+      // Prepare files for upload (including payment screenshot)
+      const allFiles: Array<{ 
+        file: File; 
+        options?: any; 
+        isPaymentScreenshot?: boolean;
+        orderId?: string;
+      }> = [
+        ...files.map(f => ({ file: f.file, options: f.options, orderId })),
+        { file: paymentScreenshot, isPaymentScreenshot: true, orderId },
       ];
-
-      const filesData = await Promise.all(
-        allFiles.map(async (item) => {
-          const base64 = await fileToBase64(item.file);
-          return {
-            name: item.file.name,
-            data: base64,
-            mimeType: item.file.type || 'application/octet-stream',
-            size: item.file.size,
-            isPaymentScreenshot: item.isPaymentScreenshot || false,
-            options: item.options,
-          };
-        })
-      );
 
       // Prepare order data
       const orderData = {
         orderId,
         total: calculatedTotal,
         vpa: vpaDisplay,
-        status: 'Pending',
-        files: files.map((f) => ({
-          name: f.file.name,
-          options: f.options,
-        })),
       };
 
-      // Upload via Vercel API proxy (handles CORS) which forwards to Apps Script
-      // The proxy handles CORS issues with Google Apps Script Web Apps
-      const uploadResponse = await fetch('/api/proxy-upload', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          files: filesData,
-          orderData: orderData,
-        }),
-      });
-
-      if (!uploadResponse.ok) {
-        const errorData = await uploadResponse.json().catch(() => ({}));
-        throw new Error(
-          errorData.error || errorData.message || 'Failed to upload files to Google Drive'
-        );
-      }
-
-      const uploadResult = await uploadResponse.json();
+      // Upload directly to Apps Script (no Vercel proxy, no 4.5MB limit!)
+      console.log(`[Upload] Starting direct upload to Apps Script (bypassing Vercel proxy)...`);
+      console.log(`[Upload] Total files: ${allFiles.length}, Total size: ${(allFiles.reduce((sum, f) => sum + f.file.size, 0) / 1024 / 1024).toFixed(2)}MB`);
       
-      if (!uploadResult.success) {
-        const errorMsg = uploadResult.errors?.map((e: any) => e.error).join(', ') || uploadResult.error;
-        throw new Error(
-          errorMsg || 'File upload failed. Please try again.'
-        );
+      const uploadResult = await uploadBatchToDriveViaAppsScript(allFiles, orderData);
+      
+      if (!uploadResult || uploadResult.length === 0) {
+        throw new Error('File upload failed. No files were uploaded.');
       }
+
+      console.log(`✅ Successfully uploaded ${uploadResult.length} file(s) to Google Drive`);
 
       // Payment screenshot is handled by Apps Script and stored in Google Sheets
-      // Order is already created with all file information
+      // Order is already created with all file information in Apps Script/Sheets
 
       setOrderId(orderId);
       setOrderSubmitted(true);
-      console.log('Order submitted:', { orderId, uploadResult });
+      console.log('Order submitted:', { orderId, uploadedFiles: uploadResult.length });
     } catch (error: any) {
-      console.error('Error submitting order:', error);
-      setError(
-        error?.message ||
-          'Failed to submit order. Please check file sizes and try again.'
-      );
+      console.error('❌ Error submitting order:', error);
+      console.error('Error details:', {
+        message: error?.message,
+        stack: error?.stack,
+        name: error?.name
+      });
+      
+      // Show detailed error message
+      let errorMessage = error?.message || 'Failed to submit order';
+      
+      // Add helpful hints based on error type
+      if (errorMessage.includes('CORS')) {
+        errorMessage += '\n\nFix: Make sure Apps Script is deployed with "Anyone" access.';
+      } else if (errorMessage.includes('413') || errorMessage.includes('too large')) {
+        errorMessage += '\n\nFix: Reduce file sizes or upload fewer files.';
+      } else if (errorMessage.includes('Failed to fetch') || errorMessage.includes('NetworkError')) {
+        errorMessage += '\n\nFix: Check your internet connection and Apps Script URL.';
+      } else if (errorMessage.includes('not configured')) {
+        errorMessage += '\n\nFix: Set NEXT_PUBLIC_APPS_SCRIPT_WEB_APP_URL in .env.local and restart dev server.';
+      }
+      
+      setError(errorMessage);
     } finally {
       setIsSubmitting(false);
     }
@@ -579,11 +552,20 @@ export default function Home() {
               <h2 className="text-xl font-bold mb-4 text-white">
                 Upload Payment Screenshot
               </h2>
+              <label 
+                htmlFor="payment-screenshot-input"
+                className="block text-sm text-gray-medium mb-2"
+              >
+                Select payment confirmation screenshot
+              </label>
               <input
+                id="payment-screenshot-input"
+                name="paymentScreenshot"
                 type="file"
                 accept="image/png,image/jpeg,image/jpg"
                 onChange={handlePaymentScreenshotChange}
                 className="block w-full text-sm text-gray-300 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-white file:text-black hover:file:bg-gray-200"
+                aria-label="Upload payment screenshot"
               />
               {paymentScreenshot && (
                 <div className="mt-2">

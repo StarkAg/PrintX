@@ -6,11 +6,12 @@ const FOLDER_ID = '1M21jnE7SEm-81HUufhnas24q42nrmM2K'; // your Drive folder
 const SHEET_ID  = '19pxCvykhIsTDZOFYpCcaVu8To1lRDfP6-OF_NsiqdNo'; // your Sheet (optional)
 
 // Google Drive limits: 5TB per file, 750GB/day upload quota
-// Apps Script limits: 6 min execution, 50MB response, 100MB request
-// For safety, we'll use reasonable limits that work well
-const MAX_FILE_SIZE = 100 * 1024 * 1024;  // 100 MB max per file (well under Drive's 5TB limit)
-const MAX_TOTAL_SIZE = 500 * 1024 * 1024; // 500 MB total per request (safe for Apps Script, under 6 min execution)
-const MAX_FILES = 20; // Increased limit for better flexibility
+// Apps Script limits: 6 min execution, 50MB response, 100MB request (but we can push higher)
+// Increasing limits for larger files - Apps Script can handle up to 100MB request size
+// For base64 encoding, 75MB file = ~100MB encoded, so we set MAX_FILE_SIZE to 75MB raw
+const MAX_FILE_SIZE = 75 * 1024 * 1024;   // 75 MB max per file (becomes ~100MB when base64 encoded)
+const MAX_TOTAL_SIZE = 500 * 1024 * 1024; // 500 MB total per request (safe for Apps Script execution time)
+const MAX_FILES = 50; // Increased limit for more files
 
 // --- CORS preflight handler ---
 // Note: Google Apps Script Web Apps automatically handle CORS when deployed correctly
@@ -83,16 +84,23 @@ function doPost(e) {
 
         decodedTotalBytes += decodedSize;
         if (decodedSize > MAX_FILE_SIZE) {
-          errors.push({ index: i, name: f.name, error: `Decoded file too large (> ${MAX_FILE_SIZE} bytes)` });
+          const fileSizeMB = (decodedSize / (1024 * 1024)).toFixed(2);
+          const maxSizeMB = (MAX_FILE_SIZE / (1024 * 1024)).toFixed(0);
+          errors.push({ index: i, name: f.name, error: `File too large: ${fileSizeMB}MB (max ${maxSizeMB}MB per file)` });
           continue;
         }
         if (decodedTotalBytes > MAX_TOTAL_SIZE) {
-          errors.push({ index: i, name: f.name, error: `Total decoded payload too large (exceeds ${MAX_TOTAL_SIZE} bytes)` });
+          const totalSizeMB = (decodedTotalBytes / (1024 * 1024)).toFixed(2);
+          const maxTotalMB = (MAX_TOTAL_SIZE / (1024 * 1024)).toFixed(0);
+          errors.push({ index: i, name: f.name, error: `Total size too large: ${totalSizeMB}MB (max ${maxTotalMB}MB total)` });
           continue;
         }
+        
+        console.log(`Uploading file ${i + 1}/${files.length}: ${safeName} (${(decodedSize / 1024 / 1024).toFixed(2)}MB)`);
 
         const blob = Utilities.newBlob(bytes, f.mimeType || 'application/octet-stream', safeName);
         const driveFile = folder.createFile(blob);
+        console.log(`✅ Successfully uploaded: ${safeName} (ID: ${driveFile.getId()})`);
 
         const fileId = driveFile.getId();
         const webViewLink = driveFile.getUrl();
@@ -115,7 +123,17 @@ function doPost(e) {
         });
 
       } catch (innerErr) {
-        errors.push({ index: i, name: f.name, error: innerErr.toString() });
+        console.error(`Error uploading file ${i} (${f.name}):`, innerErr);
+        console.error('Error details:', {
+          message: innerErr.toString(),
+          name: innerErr.name,
+          line: innerErr.lineNumber
+        });
+        errors.push({ 
+          index: i, 
+          name: f.name, 
+          error: innerErr.toString() || 'Unknown error during file upload'
+        });
       }
     }
 
@@ -170,7 +188,17 @@ function doPost(e) {
 
   } catch (err) {
     console.error('doPost fatal error:', err);
-    return createResponse(500, { error: 'Internal server error', details: err.toString() });
+    console.error('Error stack:', err.stack);
+    console.error('Error details:', JSON.stringify({
+      message: err.toString(),
+      name: err.name,
+      line: err.lineNumber
+    }));
+    return createResponse(500, { 
+      error: 'Internal server error', 
+      details: err.toString(),
+      message: 'Failed to process upload. Check Apps Script logs for details.'
+    });
   }
 }
 

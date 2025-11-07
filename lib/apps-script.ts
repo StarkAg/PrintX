@@ -252,24 +252,28 @@ export async function uploadBuffersToDriveViaAppsScript(
 
 /**
  * Client-side: Batch upload multiple files to Google Drive via Apps Script
+ * Uses NEXT_PUBLIC_APPS_SCRIPT_WEB_APP_URL for direct client-side uploads (bypasses Vercel 4.5MB limit)
  */
 export async function uploadBatchToDriveViaAppsScript(
-  files: Array<{ file: File; orderId?: string }>,
+  files: Array<{ file: File; orderId?: string; options?: any; isPaymentScreenshot?: boolean }>,
   orderData?: {
     orderId: string;
     total: number;
     vpa: string;
   }
 ): Promise<UploadResult[]> {
-  const webAppUrl = process.env.APPS_SCRIPT_WEB_APP_URL;
+  // Use public env var for client-side access (direct upload, no Vercel limit!)
+  const webAppUrl = typeof window !== 'undefined' 
+    ? (process.env.NEXT_PUBLIC_APPS_SCRIPT_WEB_APP_URL || process.env.APPS_SCRIPT_WEB_APP_URL)
+    : process.env.APPS_SCRIPT_WEB_APP_URL;
 
   if (!webAppUrl) {
-    console.warn('APPS_SCRIPT_WEB_APP_URL not configured. Using placeholders.');
-    return files.map((f) => ({
-      fileId: `placeholder_${Date.now()}_${f.file.name}`,
-      fileName: f.file.name,
-    }));
+    const errorMsg = 'NEXT_PUBLIC_APPS_SCRIPT_WEB_APP_URL not configured. Please set it in .env.local and restart the dev server.';
+    console.error(errorMsg);
+    throw new Error(errorMsg);
   }
+
+  console.log(`[Upload] Using Apps Script URL: ${webAppUrl.substring(0, 50)}... (direct upload, bypassing Vercel)`);
 
   try {
     const timestamp = new Date().toISOString();
@@ -284,6 +288,8 @@ export async function uploadBatchToDriveViaAppsScript(
         data: await fileToBase64(f.file),
         mimeType: f.file.type || 'application/octet-stream',
         size: f.file.size,
+        isPaymentScreenshot: f.isPaymentScreenshot || false,
+        options: f.options,
       }))
     );
 
@@ -300,7 +306,10 @@ export async function uploadBatchToDriveViaAppsScript(
         : undefined,
     };
 
-    // Send to Apps Script
+    // Send to Apps Script (direct upload, bypasses Vercel 4.5MB limit!)
+    console.log(`[Upload] Sending ${files.length} file(s) to Apps Script...`);
+    const requestStartTime = Date.now();
+    
     const response = await fetch(webAppUrl, {
       method: 'POST',
       headers: {
@@ -309,18 +318,47 @@ export async function uploadBatchToDriveViaAppsScript(
       body: JSON.stringify(requestData),
     });
 
+    const requestDuration = Date.now() - requestStartTime;
+    console.log(`[Upload] Request completed in ${requestDuration}ms, status: ${response.status}`);
+
     if (!response.ok) {
-      throw new Error(`Apps Script returned ${response.status}: ${response.statusText}`);
+      const errorText = await response.text().catch(() => '');
+      console.error(`[Upload] Error response (${response.status}):`, errorText);
+      
+      let errorMessage = `Upload failed (${response.status}): ${response.statusText}`;
+      try {
+        const errorData = JSON.parse(errorText);
+        errorMessage = errorData.error || errorData.message || errorData.details || errorMessage;
+        
+        // Add more context if available
+        if (errorData.details) {
+          errorMessage += ` - ${errorData.details}`;
+        }
+      } catch {
+        if (errorText) {
+          errorMessage = errorText.length > 200 ? errorText.substring(0, 200) + '...' : errorText;
+        }
+      }
+      throw new Error(errorMessage);
     }
 
     const result: AppsScriptResponse = await response.json();
+    console.log(`[Upload] Response received:`, {
+      success: result.success,
+      uploadedCount: result.uploadedCount,
+      totalCount: result.totalCount,
+      errors: result.errors?.length || 0
+    });
 
     if (!result.success) {
-      throw new Error('Apps Script batch upload failed');
+      const errorMsg = result.errors?.map((e: any) => e.error || `${e.name || `File ${e.index}`}: ${e.error}`).join(', ') 
+        || 'Apps Script batch upload failed';
+      throw new Error(errorMsg);
     }
 
     if (result.errors && result.errors.length > 0) {
-      console.error('Apps Script upload errors:', result.errors);
+      console.error('Apps Script upload errors (some files may have failed):', result.errors);
+      // Still continue if some files succeeded
     }
 
     console.log(
@@ -339,6 +377,12 @@ export async function uploadBatchToDriveViaAppsScript(
     console.error(
       `[${new Date().toISOString()}] ❌ Apps Script batch upload failed: ${errorMessage}`
     );
+    
+    // Check if it's a CORS error
+    if (errorMessage.includes('CORS') || errorMessage.includes('Failed to fetch') || errorMessage.includes('NetworkError')) {
+      throw new Error(`CORS error: Make sure Apps Script is deployed with "Anyone" access. Error: ${errorMessage}`);
+    }
+    
     throw new Error(`Failed to upload files via Apps Script: ${errorMessage}`);
   }
 }
