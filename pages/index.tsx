@@ -20,6 +20,7 @@ export default function Home() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [orderSubmitted, setOrderSubmitted] = useState(false);
   const [orderId, setOrderId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const router = useRouter();
 
@@ -76,11 +77,48 @@ export default function Home() {
 
   const handleConfirmOrder = async () => {
     if (!paymentScreenshot) {
-      alert('Please upload a payment screenshot');
+      setError('Please upload a payment screenshot');
+      return;
+    }
+
+    // Check file sizes before uploading
+    const totalSize = files.reduce((sum, f) => sum + f.file.size, 0);
+    const maxFileSize = 25 * 1024 * 1024; // 25MB
+    const maxTotalSize = 45 * 1024 * 1024; // 45MB
+
+    for (const fileWithOptions of files) {
+      if (fileWithOptions.file.size > maxFileSize) {
+        setError(
+          `File "${fileWithOptions.file.name}" is too large (${(
+            fileWithOptions.file.size /
+            (1024 * 1024)
+          ).toFixed(2)}MB). Maximum file size is 25MB.`
+        );
+        return;
+      }
+    }
+
+    if (totalSize > maxTotalSize) {
+      setError(
+        `Total file size is too large (${(totalSize / (1024 * 1024)).toFixed(
+          2
+        )}MB). Maximum total size is 45MB. Please upload fewer files or compress them.`
+      );
+      return;
+    }
+
+    if (paymentScreenshot.size > maxFileSize) {
+      setError(
+        `Payment screenshot is too large (${(
+          paymentScreenshot.size /
+          (1024 * 1024)
+        ).toFixed(2)}MB). Maximum file size is 25MB.`
+      );
       return;
     }
 
     setIsSubmitting(true);
+    setError(null);
 
     try {
       const total = calculatedTotal;
@@ -116,11 +154,13 @@ export default function Home() {
         if (response.status === 413) {
           throw new Error(
             errorData.message ||
-              'File size too large. Please keep files under 50MB each and total under 100MB.'
+              'File size limit exceeded. Maximum: 25MB per file, 45MB total. Please compress your files or upload fewer files.'
           );
         }
         throw new Error(
-          errorData.message || errorData.error || 'Failed to submit order'
+          errorData.message ||
+            errorData.error ||
+            'Failed to submit order. Please try again.'
         );
       }
 
@@ -130,7 +170,7 @@ export default function Home() {
       console.log('Order submitted:', result);
     } catch (error: any) {
       console.error('Error submitting order:', error);
-      alert(
+      setError(
         error?.message ||
           'Failed to submit order. Please check file sizes and try again.'
       );
@@ -478,17 +518,97 @@ export default function Home() {
                 className="block w-full text-sm text-gray-300 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-white file:text-black hover:file:bg-gray-200"
               />
               {paymentScreenshot && (
-                <p className="mt-2 text-green-400">
-                  ✓ Screenshot selected: {paymentScreenshot.name}
+                <div className="mt-2">
+                  <p className="text-green-400">
+                    ✓ Screenshot selected: {paymentScreenshot.name}
+                  </p>
+                  <p className="text-xs text-gray-400 mt-1">
+                    Size: {(paymentScreenshot.size / (1024 * 1024)).toFixed(2)}MB
+                    {paymentScreenshot.size > 25 * 1024 * 1024 && (
+                      <span className="text-red-400 ml-2">
+                        (Too large! Max 25MB)
+                      </span>
+                    )}
+                  </p>
+                </div>
+              )}
+              <p className="text-xs text-gray-500 mt-2">
+                Maximum file size: 25MB
+              </p>
+            </div>
+
+            {/* File Size Info */}
+            <div className="bg-card-hover border border-gray rounded-lg p-4">
+              <div className="flex justify-between items-center text-sm">
+                <span className="text-gray-400">Total file size:</span>
+                <span
+                  className={`font-semibold ${
+                    files.reduce((sum, f) => sum + f.file.size, 0) >
+                    45 * 1024 * 1024
+                      ? 'text-red-400'
+                      : 'text-white'
+                  }`}
+                >
+                  {(
+                    files.reduce((sum, f) => sum + f.file.size, 0) /
+                    (1024 * 1024)
+                  ).toFixed(2)}
+                  MB / 45MB
+                </span>
+              </div>
+              {files.reduce((sum, f) => sum + f.file.size, 0) >
+                45 * 1024 * 1024 && (
+                <p className="text-red-400 text-xs mt-2">
+                  ⚠ Total size exceeds limit. Please remove some files.
                 </p>
               )}
             </div>
+
+            {/* Error Message */}
+            {error && (
+              <div className="bg-red-900/30 border border-red-700 rounded-lg p-4">
+                <div className="flex items-start gap-3">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    className="text-red-400 w-5 h-5 flex-shrink-0 mt-0.5"
+                  >
+                    <circle cx="12" cy="12" r="10" />
+                    <line x1="12" y1="8" x2="12" y2="12" />
+                    <line x1="12" y1="16" x2="12.01" y2="16" />
+                  </svg>
+                  <div className="flex-1">
+                    <p className="text-red-400 font-semibold mb-1">Error</p>
+                    <p className="text-red-300 text-sm">{error}</p>
+                  </div>
+                  <button
+                    onClick={() => setError(null)}
+                    className="text-red-400 hover:text-red-300"
+                  >
+                    ×
+                  </button>
+                </div>
+              </div>
+            )}
 
             {/* Confirm Button */}
             <div className="flex justify-end">
               <button
                 onClick={handleConfirmOrder}
-                disabled={isSubmitting || !paymentScreenshot}
+                disabled={
+                  isSubmitting ||
+                  !paymentScreenshot ||
+                  files.reduce((sum, f) => sum + f.file.size, 0) >
+                    45 * 1024 * 1024 ||
+                  files.some((f) => f.file.size > 25 * 1024 * 1024) ||
+                  (paymentScreenshot &&
+                    paymentScreenshot.size > 25 * 1024 * 1024)
+                }
                 className="bg-white text-black px-8 py-3 rounded-lg font-semibold hover:bg-gray-100 transition-all transform hover:scale-105 shadow-lg border-2 border-white hover:border-gray-300 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
               >
                 {isSubmitting ? 'Submitting...' : 'Confirm & Proceed'}

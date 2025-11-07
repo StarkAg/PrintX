@@ -119,12 +119,13 @@ export default async function handler(
   if (req.method === 'POST') {
     try {
       // Configure formidable for file uploads
+      // Vercel free tier limit: 50MB total request body
       const uploadsDir = getUploadsDir();
       const form = formidable({
         uploadDir: uploadsDir,
         keepExtensions: true,
-        maxFileSize: 50 * 1024 * 1024, // 50MB per file
-        maxTotalFileSize: 100 * 1024 * 1024, // 100MB total files
+        maxFileSize: 25 * 1024 * 1024, // 25MB per file (to stay well under 50MB total)
+        maxTotalFileSize: 45 * 1024 * 1024, // 45MB total files (safety margin for Vercel free tier)
         multiples: true, // Allow multiple files
       });
 
@@ -301,9 +302,9 @@ export default async function handler(
         res
           .status(413)
           .json({
-            error: 'Payload too large',
+            error: 'File size limit exceeded',
             message:
-              'Uploaded files exceed the allowed size. Please keep individual files under 50MB and total upload under 100MB. Try uploading fewer files or compress your files.',
+              'Uploaded files exceed the allowed size limit. Maximum: 25MB per file, 45MB total. Please compress your files or upload fewer files at a time.',
           });
         return;
       }

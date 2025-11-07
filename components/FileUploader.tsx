@@ -76,11 +76,22 @@ export default function FileUploader({
   const handleFileSelect = async (selectedFiles: FileList | null) => {
     if (!selectedFiles) return;
 
+    const maxFileSize = 25 * 1024 * 1024; // 25MB
     const newFiles: FileWithOptions[] = [];
+    const skippedFiles: string[] = [];
 
     for (let i = 0; i < selectedFiles.length; i++) {
       const file = selectedFiles[i];
-      if (!acceptedTypes.includes(file.type)) continue;
+      if (!acceptedTypes.includes(file.type)) {
+        skippedFiles.push(`${file.name} (unsupported type)`);
+        continue;
+      }
+      if (file.size > maxFileSize) {
+        skippedFiles.push(
+          `${file.name} (${(file.size / (1024 * 1024)).toFixed(2)}MB - exceeds 25MB limit)`
+        );
+        continue;
+      }
 
       let preview: string | undefined;
       if (file.type.startsWith('image/')) {
@@ -110,6 +121,13 @@ export default function FileUploader({
     }
 
     onFilesChange([...files, ...newFiles]);
+
+    // Show warning for skipped files
+    if (skippedFiles.length > 0) {
+      alert(
+        `Some files were skipped:\n${skippedFiles.join('\n')}\n\nMaximum file size is 25MB per file.`
+      );
+    }
   };
 
   const handleDrop = (e: React.DragEvent) => {
@@ -182,6 +200,9 @@ export default function FileUploader({
         <p className="text-gray-medium text-sm mt-4">
           Accepted: PDF, PNG, JPG, JPEG
         </p>
+        <p className="text-gray-500 text-xs mt-2">
+          Limits: 25MB per file, 45MB total
+        </p>
       </div>
 
       {/* File List */}
@@ -221,8 +242,19 @@ export default function FileUploader({
                       <h3 className="text-white font-semibold truncate">
                         {fileWithOptions.file.name}
                       </h3>
-                      <p className="text-gray-medium text-sm">
-                        {(fileWithOptions.file.size / 1024).toFixed(2)} KB
+                      <p
+                        className={`text-sm mt-1 ${
+                          fileWithOptions.file.size > 25 * 1024 * 1024
+                            ? 'text-red-400'
+                            : 'text-gray-medium'
+                        }`}
+                      >
+                        {(fileWithOptions.file.size / (1024 * 1024)).toFixed(2)} MB
+                        {fileWithOptions.file.size > 25 * 1024 * 1024 && (
+                          <span className="ml-2 text-red-400">
+                            ⚠ Exceeds 25MB limit
+                          </span>
+                        )}
                       </p>
                       <p className="text-white font-bold mt-2">
                         ₹{pricing.subtotal}
