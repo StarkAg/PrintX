@@ -262,18 +262,28 @@ export async function uploadBatchToDriveViaAppsScript(
     vpa: string;
   }
 ): Promise<UploadResult[]> {
-  // Use public env var for client-side access (direct upload, no Vercel limit!)
-  const webAppUrl = typeof window !== 'undefined' 
+  // Use Vercel proxy to handle CORS (fixes CORS issues with Apps Script)
+  // The proxy adds CORS headers and forwards to Apps Script server-to-server
+  const useProxy = true; // Always use proxy to avoid CORS issues
+  
+  const proxyUrl = '/api/proxy-upload';
+  const directUrl = typeof window !== 'undefined' 
     ? (process.env.NEXT_PUBLIC_APPS_SCRIPT_WEB_APP_URL || process.env.APPS_SCRIPT_WEB_APP_URL)
     : process.env.APPS_SCRIPT_WEB_APP_URL;
 
+  const webAppUrl = useProxy ? proxyUrl : directUrl;
+
   if (!webAppUrl) {
-    const errorMsg = 'NEXT_PUBLIC_APPS_SCRIPT_WEB_APP_URL not configured. Please set it in .env.local and restart the dev server.';
+    const errorMsg = 'APPS_SCRIPT_WEB_APP_URL not configured. Please set it in Vercel environment variables.';
     console.error(errorMsg);
     throw new Error(errorMsg);
   }
 
-  console.log(`[Upload] Using Apps Script URL: ${webAppUrl.substring(0, 50)}... (direct upload, bypassing Vercel)`);
+  if (useProxy) {
+    console.log(`[Upload] Using Vercel proxy: ${proxyUrl} (handles CORS, forwards to Apps Script)`);
+  } else {
+    console.log(`[Upload] Using direct Apps Script URL: ${directUrl?.substring(0, 50)}...`);
+  }
 
   try {
     const timestamp = new Date().toISOString();

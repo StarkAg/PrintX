@@ -5,8 +5,8 @@ const nextConfig: NextConfig = {
   // File upload limits are handled in pages/api/order.ts via formidable
   
   // Content Security Policy headers
-  // Note: PDF.js requires 'unsafe-eval' for some operations
-  // This is a known limitation when using PDF.js in the browser
+  // Note: We're using PDF.js with isEvalSupported: false to avoid eval
+  // QRCode library doesn't use eval, so we can safely restrict it
   async headers() {
     return [
       {
@@ -16,7 +16,7 @@ const nextConfig: NextConfig = {
             key: 'Content-Security-Policy',
             value: [
               "default-src 'self'",
-              "script-src 'self' 'unsafe-inline' 'unsafe-eval'", // unsafe-eval needed for PDF.js
+              "script-src 'self' 'unsafe-inline'", // Removed unsafe-eval - PDF.js configured without eval
               "style-src 'self' 'unsafe-inline'",
               "img-src 'self' data: blob:",
               "font-src 'self' data:",

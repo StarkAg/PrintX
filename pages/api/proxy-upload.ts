@@ -8,7 +8,7 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 export const config = {
   api: {
     bodyParser: {
-      sizeLimit: '50mb', // Vercel's max, but we'll try to stay under
+      sizeLimit: '50mb', // Vercel's max limit
     },
   },
 };
@@ -17,10 +17,13 @@ export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
 ) {
-  // Set CORS headers
-  res.setHeader('Access-Control-Allow-Origin', '*');
+  // Set CORS headers explicitly
+  const origin = req.headers.origin;
+  res.setHeader('Access-Control-Allow-Origin', origin || '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  res.setHeader('Access-Control-Max-Age', '86400'); // 24 hours
 
   // Handle preflight
   if (req.method === 'OPTIONS') {
@@ -33,15 +36,22 @@ export default async function handler(
     return;
   }
 
+  // Use server-side environment variable (not NEXT_PUBLIC_)
   const appsScriptUrl = process.env.APPS_SCRIPT_WEB_APP_URL;
 
   if (!appsScriptUrl) {
-    res.status(500).json({ error: 'Apps Script URL not configured' });
+    console.error('APPS_SCRIPT_WEB_APP_URL not configured in Vercel environment variables');
+    res.status(500).json({ 
+      error: 'Apps Script URL not configured',
+      message: 'Please set APPS_SCRIPT_WEB_APP_URL in Vercel environment variables'
+    });
     return;
   }
+  
+  console.log(`[Proxy] Forwarding request to Apps Script: ${appsScriptUrl.substring(0, 50)}...`);
 
   try {
-    // Forward the request to Apps Script
+    // Forward the request to Apps Script (server-to-server, no CORS needed)
     const response = await fetch(appsScriptUrl, {
       method: 'POST',
       headers: {
@@ -50,12 +60,24 @@ export default async function handler(
       body: JSON.stringify(req.body),
     });
 
-    const data = await response.json();
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => '');
+      console.error(`[Proxy] Apps Script returned ${response.status}:`, errorText);
+      res.status(response.status).json({
+        error: 'Apps Script request failed',
+        status: response.status,
+        details: errorText
+      });
+      return;
+    }
 
-    // Forward the response
+    const data = await response.json();
+    console.log(`[Proxy] Successfully forwarded request, received response with ${data.files?.length || 0} files`);
+
+    // Forward the response with CORS headers already set
     res.status(response.status).json(data);
   } catch (error: any) {
-    console.error('Proxy error:', error);
+    console.error('[Proxy] Error forwarding request:', error);
     res.status(500).json({
       error: 'Failed to proxy request to Apps Script',
       message: error?.message || 'Unknown error',
