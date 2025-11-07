@@ -701,11 +701,11 @@ export default function Home() {
                 disabled={
                   isSubmitting ||
                   !paymentScreenshot ||
-                  files.length > 10 ||
+                  files.length > 20 ||
                   totalUploadSize > maxTotalSize ||
-                  files.some((f) => f.file.size > 25 * 1024 * 1024) ||
+                  files.some((f) => f.file.size > 100 * 1024 * 1024) ||
                   (paymentScreenshot &&
-                    paymentScreenshot.size > 25 * 1024 * 1024)
+                    paymentScreenshot.size > 100 * 1024 * 1024)
                 }
                 className="bg-white text-black px-8 py-3 rounded-lg font-semibold hover:bg-gray-100 transition-all transform hover:scale-105 shadow-lg border-2 border-white hover:border-gray-300 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
               >
