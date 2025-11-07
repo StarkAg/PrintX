@@ -39,3 +39,12 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# uploads and user data
+/public/uploads/payments/*
+/public/uploads/thumbnails/*
+!/public/uploads/payments/.gitkeep
+!/public/uploads/thumbnails/.gitkeep
+
+# data files (keep structure but ignore actual data)
+/data/orders.json
