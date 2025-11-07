@@ -28,6 +28,15 @@ export default function Home() {
 
   const calculatedTotal = useMemo(() => calculateTotal(files), [files]);
 
+  // Calculate total upload size (files + payment screenshot)
+  const totalUploadSize = useMemo(() => {
+    const filesSize = files.reduce((sum, f) => sum + f.file.size, 0);
+    const screenshotSize = paymentScreenshot?.size || 0;
+    return filesSize + screenshotSize;
+  }, [files, paymentScreenshot]);
+
+  const maxTotalSize = 45 * 1024 * 1024; // 45MB
+
   const upiPayload = useMemo(() => {
     const amount = calculatedTotal > 0 ? calculatedTotal.toFixed(2) : undefined;
     const basePayload = `upi://pay?pa=${encodeURIComponent(
@@ -91,37 +100,43 @@ export default function Home() {
     }
 
     // Check file sizes before uploading
-    const totalSize = files.reduce((sum, f) => sum + f.file.size, 0);
-    const maxFileSize = 25 * 1024 * 1024; // 25MB
-    const maxTotalSize = 45 * 1024 * 1024; // 45MB
+    const maxFileSize = 25 * 1024 * 1024; // 25MB per file
+    const maxTotalSize = 45 * 1024 * 1024; // 45MB total (includes all files + payment screenshot)
 
+    // Check individual file sizes
     for (const fileWithOptions of files) {
       if (fileWithOptions.file.size > maxFileSize) {
         setError(
           `File "${fileWithOptions.file.name}" is too large (${(
             fileWithOptions.file.size /
             (1024 * 1024)
-          ).toFixed(2)}MB). Maximum file size is 25MB.`
+          ).toFixed(2)}MB). Maximum file size is 25MB per file.`
         );
         return;
       }
     }
 
-    if (totalSize > maxTotalSize) {
-      setError(
-        `Total file size is too large (${(totalSize / (1024 * 1024)).toFixed(
-          2
-        )}MB). Maximum total size is 45MB. Please upload fewer files or compress them.`
-      );
-      return;
-    }
-
+    // Check payment screenshot size
     if (paymentScreenshot.size > maxFileSize) {
       setError(
         `Payment screenshot is too large (${(
           paymentScreenshot.size /
           (1024 * 1024)
-        ).toFixed(2)}MB). Maximum file size is 25MB.`
+        ).toFixed(2)}MB). Maximum file size is 25MB. Please compress the screenshot.`
+      );
+      return;
+    }
+
+    // Check total size (files + payment screenshot)
+    const filesSize = files.reduce((sum, f) => sum + f.file.size, 0);
+    const totalSize = filesSize + paymentScreenshot.size;
+
+    if (totalSize > maxTotalSize) {
+      const filesSizeMB = (filesSize / (1024 * 1024)).toFixed(2);
+      const screenshotSizeMB = (paymentScreenshot.size / (1024 * 1024)).toFixed(2);
+      const totalSizeMB = (totalSize / (1024 * 1024)).toFixed(2);
+      setError(
+        `Total size exceeds limit. Files: ${filesSizeMB}MB + Payment screenshot: ${screenshotSizeMB}MB = ${totalSizeMB}MB. Maximum total is 45MB (including payment screenshot). Please compress files or upload fewer files.`
       );
       return;
     }
@@ -565,26 +580,39 @@ export default function Home() {
                 </p>
               )}
               <div className="flex justify-between items-center text-sm">
-                <span className="text-gray-400">Total file size:</span>
+                <span className="text-gray-400">Files size:</span>
+                <span className="font-semibold text-white">
+                  {(files.reduce((sum, f) => sum + f.file.size, 0) / (1024 * 1024)).toFixed(2)} MB
+                </span>
+              </div>
+              {paymentScreenshot && (
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-gray-400">Payment screenshot:</span>
+                  <span className="font-semibold text-white">
+                    {(paymentScreenshot.size / (1024 * 1024)).toFixed(2)} MB
+                  </span>
+                </div>
+              )}
+              <div className="flex justify-between items-center text-sm border-t border-gray pt-2">
+                <span className="text-gray-400">Total upload size:</span>
                 <span
                   className={`font-semibold ${
-                    files.reduce((sum, f) => sum + f.file.size, 0) >
-                    45 * 1024 * 1024
+                    totalUploadSize > maxTotalSize
                       ? 'text-red-400'
                       : 'text-white'
                   }`}
                 >
-                  {(
-                    files.reduce((sum, f) => sum + f.file.size, 0) /
-                    (1024 * 1024)
-                  ).toFixed(2)}
-                  MB / 45MB
+                  {(totalUploadSize / (1024 * 1024)).toFixed(2)} MB / 45MB
                 </span>
               </div>
-              {files.reduce((sum, f) => sum + f.file.size, 0) >
-                45 * 1024 * 1024 && (
+              {totalUploadSize > maxTotalSize && (
                 <p className="text-red-400 text-xs">
-                  ⚠ Total size exceeds limit. Please remove some files.
+                  ⚠ Total size exceeds limit (including payment screenshot). Please compress files or remove some files.
+                </p>
+              )}
+              {!paymentScreenshot && files.length > 0 && (
+                <p className="text-gray-400 text-xs">
+                  ℹ Payment screenshot will be added to total size
                 </p>
               )}
             </div>
@@ -629,8 +657,7 @@ export default function Home() {
                   isSubmitting ||
                   !paymentScreenshot ||
                   files.length > 10 ||
-                  files.reduce((sum, f) => sum + f.file.size, 0) >
-                    45 * 1024 * 1024 ||
+                  totalUploadSize > maxTotalSize ||
                   files.some((f) => f.file.size > 25 * 1024 * 1024) ||
                   (paymentScreenshot &&
                     paymentScreenshot.size > 25 * 1024 * 1024)
