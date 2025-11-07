@@ -260,7 +260,7 @@ export default function FileUploader({
                         }`}
                       >
                         {(fileWithOptions.file.size / (1024 * 1024)).toFixed(2)} MB
-                        {fileWithOptions.file.size > 25 * 1024 * 1024 && (
+                        {fileWithOptions.file.size > 100 * 1024 * 1024 && (
                           <span className="ml-2 text-red-400">
                             ⚠ Exceeds 100MB limit
                           </span>
