@@ -48,6 +48,12 @@ function getThumbnailsDir(): string {
 }
 
 function ensureDirectories(): void {
+  // Skip directory creation on Vercel (read-only filesystem)
+  const isVercel = !!process.env.VERCEL;
+  if (isVercel) {
+    return;
+  }
+
   try {
     const ordersFilePath = getOrdersFilePath();
     const uploadsDir = getUploadsDir();
@@ -83,11 +89,24 @@ function readOrders(): Order[] {
 
 function writeOrders(orders: Order[]) {
   try {
+    // On Vercel, filesystem is read-only (except /tmp which is ephemeral)
+    // TODO: Migrate to a database (Vercel Postgres, MongoDB, or Google Sheets) for production
+    const isVercel = !!process.env.VERCEL;
+    if (isVercel) {
+      // On Vercel, orders won't persist to filesystem
+      // They should be stored in Google Sheets via Apps Script or a database
+      console.warn('Vercel detected: Orders are not being persisted to filesystem. Consider using a database or Google Sheets.');
+      // For now, log the order (could be sent to Google Sheets or external storage)
+      console.log('Order data (should be stored externally):', JSON.stringify(orders, null, 2));
+      return;
+    }
+    
     const ordersFilePath = getOrdersFilePath();
     fs.writeFileSync(ordersFilePath, JSON.stringify(orders, null, 2));
   } catch (error) {
     console.error('Error writing orders:', error);
-    throw error;
+    // Don't throw - allow the request to complete even if order storage fails
+    // On Vercel, this is expected since filesystem is read-only
   }
 }
 
@@ -249,39 +268,44 @@ export default async function handler(
                 }
 
                 // Save thumbnail (from client-side generated data URL)
+                // Skip on Vercel (read-only filesystem) - thumbnails are only for local admin view
                 const fileBuffer = fs.readFileSync(filepath);
                 let thumbnailPath: string | undefined;
-                const fileExt = path.extname(originalFilename || fileInfo.name).toLowerCase();
-                const isImage = ['.png', '.jpg', '.jpeg'].includes(fileExt);
-                const isPDF = fileExt === '.pdf';
+                const isVercel = !!process.env.VERCEL;
+                
+                if (!isVercel) {
+                  const fileExt = path.extname(originalFilename || fileInfo.name).toLowerCase();
+                  const isImage = ['.png', '.jpg', '.jpeg'].includes(fileExt);
+                  const isPDF = fileExt === '.pdf';
 
-                if (fileInfo.thumbnail && (isImage || isPDF)) {
-                  try {
-                    const thumbnailsDir = getThumbnailsDir();
-                    const thumbnailExt = isPDF ? '.png' : fileExt;
-                    const thumbnailFilename = `${uuidv4()}_thumb${thumbnailExt}`;
-                    thumbnailPath = path.join('uploads', 'thumbnails', thumbnailFilename);
-                    const fullThumbnailPath = path.join(process.cwd(), 'public', thumbnailPath);
+                  if (fileInfo.thumbnail && (isImage || isPDF)) {
+                    try {
+                      const thumbnailsDir = getThumbnailsDir();
+                      const thumbnailExt = isPDF ? '.png' : fileExt;
+                      const thumbnailFilename = `${uuidv4()}_thumb${thumbnailExt}`;
+                      thumbnailPath = path.join('uploads', 'thumbnails', thumbnailFilename);
+                      const fullThumbnailPath = path.join(process.cwd(), 'public', thumbnailPath);
 
-                    if (fileInfo.thumbnail.startsWith('data:')) {
-                      const base64Data = fileInfo.thumbnail.split(',')[1];
-                      const thumbnailBuffer = Buffer.from(base64Data, 'base64');
-                      fs.writeFileSync(fullThumbnailPath, thumbnailBuffer);
-                    } else {
-                      fs.writeFileSync(fullThumbnailPath, fileBuffer);
+                      if (fileInfo.thumbnail.startsWith('data:')) {
+                        const base64Data = fileInfo.thumbnail.split(',')[1];
+                        const thumbnailBuffer = Buffer.from(base64Data, 'base64');
+                        fs.writeFileSync(fullThumbnailPath, thumbnailBuffer);
+                      } else {
+                        fs.writeFileSync(fullThumbnailPath, fileBuffer);
+                      }
+                    } catch (thumbError) {
+                      console.warn(`Could not save thumbnail for file ${index} (this is normal on Vercel):`, thumbError);
                     }
-                  } catch (thumbError) {
-                    console.error(`Error saving thumbnail for file ${index}:`, thumbError);
-                  }
-                } else if (isImage) {
-                  try {
-                    const thumbnailsDir = getThumbnailsDir();
-                    const thumbnailFilename = `${uuidv4()}_thumb${fileExt}`;
-                    thumbnailPath = path.join('uploads', 'thumbnails', thumbnailFilename);
-                    const fullThumbnailPath = path.join(process.cwd(), 'public', thumbnailPath);
-                    fs.writeFileSync(fullThumbnailPath, fileBuffer);
-                  } catch (thumbError) {
-                    console.error(`Error generating thumbnail for file ${index}:`, thumbError);
+                  } else if (isImage) {
+                    try {
+                      const thumbnailsDir = getThumbnailsDir();
+                      const thumbnailFilename = `${uuidv4()}_thumb${fileExt}`;
+                      thumbnailPath = path.join('uploads', 'thumbnails', thumbnailFilename);
+                      const fullThumbnailPath = path.join(process.cwd(), 'public', thumbnailPath);
+                      fs.writeFileSync(fullThumbnailPath, fileBuffer);
+                    } catch (thumbError) {
+                      console.warn(`Could not generate thumbnail for file ${index} (this is normal on Vercel):`, thumbError);
+                    }
                   }
                 }
 
@@ -347,38 +371,43 @@ export default async function handler(
               );
 
               // Save thumbnail (from client-side generated data URL)
+              // Skip on Vercel (read-only filesystem) - thumbnails are only for local admin view
               let thumbnailPath: string | undefined;
-              const fileExt = path.extname(originalFilename || fileInfo.name).toLowerCase();
-              const isImage = ['.png', '.jpg', '.jpeg'].includes(fileExt);
-              const isPDF = fileExt === '.pdf';
+              const isVercel = !!process.env.VERCEL;
+              
+              if (!isVercel) {
+                const fileExt = path.extname(originalFilename || fileInfo.name).toLowerCase();
+                const isImage = ['.png', '.jpg', '.jpeg'].includes(fileExt);
+                const isPDF = fileExt === '.pdf';
 
-              if (fileInfo.thumbnail && (isImage || isPDF)) {
-                try {
-                  const thumbnailsDir = getThumbnailsDir();
-                  const thumbnailExt = isPDF ? '.png' : fileExt;
-                  const thumbnailFilename = `${uuidv4()}_thumb${thumbnailExt}`;
-                  thumbnailPath = path.join('uploads', 'thumbnails', thumbnailFilename);
-                  const fullThumbnailPath = path.join(process.cwd(), 'public', thumbnailPath);
+                if (fileInfo.thumbnail && (isImage || isPDF)) {
+                  try {
+                    const thumbnailsDir = getThumbnailsDir();
+                    const thumbnailExt = isPDF ? '.png' : fileExt;
+                    const thumbnailFilename = `${uuidv4()}_thumb${thumbnailExt}`;
+                    thumbnailPath = path.join('uploads', 'thumbnails', thumbnailFilename);
+                    const fullThumbnailPath = path.join(process.cwd(), 'public', thumbnailPath);
 
-                  if (fileInfo.thumbnail.startsWith('data:')) {
-                    const base64Data = fileInfo.thumbnail.split(',')[1];
-                    const thumbnailBuffer = Buffer.from(base64Data, 'base64');
-                    fs.writeFileSync(fullThumbnailPath, thumbnailBuffer);
-                  } else {
-                    fs.writeFileSync(fullThumbnailPath, fileBuffer);
+                    if (fileInfo.thumbnail.startsWith('data:')) {
+                      const base64Data = fileInfo.thumbnail.split(',')[1];
+                      const thumbnailBuffer = Buffer.from(base64Data, 'base64');
+                      fs.writeFileSync(fullThumbnailPath, thumbnailBuffer);
+                    } else {
+                      fs.writeFileSync(fullThumbnailPath, fileBuffer);
+                    }
+                  } catch (thumbError) {
+                    console.warn(`Could not save thumbnail for file ${index} (this is normal on Vercel):`, thumbError);
                   }
-                } catch (thumbError) {
-                  console.error(`Error saving thumbnail for file ${index}:`, thumbError);
-                }
-              } else if (isImage) {
-                try {
-                  const thumbnailsDir = getThumbnailsDir();
-                  const thumbnailFilename = `${uuidv4()}_thumb${fileExt}`;
-                  thumbnailPath = path.join('uploads', 'thumbnails', thumbnailFilename);
-                  const fullThumbnailPath = path.join(process.cwd(), 'public', thumbnailPath);
-                  fs.writeFileSync(fullThumbnailPath, fileBuffer);
-                } catch (thumbError) {
-                  console.error(`Error generating thumbnail for file ${index}:`, thumbError);
+                } else if (isImage) {
+                  try {
+                    const thumbnailsDir = getThumbnailsDir();
+                    const thumbnailFilename = `${uuidv4()}_thumb${fileExt}`;
+                    thumbnailPath = path.join('uploads', 'thumbnails', thumbnailFilename);
+                    const fullThumbnailPath = path.join(process.cwd(), 'public', thumbnailPath);
+                    fs.writeFileSync(fullThumbnailPath, fileBuffer);
+                  } catch (thumbError) {
+                    console.warn(`Could not generate thumbnail for file ${index} (this is normal on Vercel):`, thumbError);
+                  }
                 }
               }
 
@@ -425,30 +454,74 @@ export default async function handler(
       if (paymentScreenshot && paymentScreenshot.filepath) {
         try {
           const screenshotBuffer = fs.readFileSync(paymentScreenshot.filepath);
+          const screenshotFilename = paymentScreenshot.originalFilename || `payment_${orderId}.png`;
           
-          // Save to public directory for admin to view
-          const screenshotFilename = `${uuidv4()}_${paymentScreenshot.originalFilename || 'payment.png'}`;
-          paymentScreenshotPath = path.join('uploads', 'payments', screenshotFilename);
-          const fullScreenshotPath = path.join(
-            process.cwd(),
-            'public',
-            paymentScreenshotPath
-          );
-          fs.writeFileSync(fullScreenshotPath, screenshotBuffer);
+          // Check if we're on Vercel (read-only filesystem) or local development
+          const isVercel = !!process.env.VERCEL;
+          
+          // Only save to filesystem in local development (Vercel has read-only filesystem)
+          if (!isVercel) {
+            try {
+              const screenshotFile = `${uuidv4()}_${screenshotFilename}`;
+              paymentScreenshotPath = path.join('uploads', 'payments', screenshotFile);
+              const fullScreenshotPath = path.join(
+                process.cwd(),
+                'public',
+                paymentScreenshotPath
+              );
+              fs.writeFileSync(fullScreenshotPath, screenshotBuffer);
+            } catch (fsError) {
+              console.warn('Could not save payment screenshot to filesystem (this is normal on Vercel):', fsError);
+            }
+          }
 
-          // Upload to Drive (or get placeholder)
-          const driveResult = await uploadToDrive(
-            screenshotBuffer,
-            paymentScreenshot.originalFilename || 'payment.png'
-          );
-          paymentScreenshotDriveId = driveResult.fileId;
+          // Upload to Google Drive via Apps Script (preferred) or fallback
+          if (useAppsScript) {
+            try {
+              const driveResults = await uploadBuffersToDriveViaAppsScript(
+                [{
+                  buffer: screenshotBuffer,
+                  filename: screenshotFilename,
+                  mimeType: paymentScreenshot.mimetype || 'image/png',
+                  size: screenshotBuffer.length,
+                }],
+                {
+                  orderId,
+                  total: parsedOrderData.total || 0,
+                  vpa: parsedOrderData.vpa || 'printx@yourbank',
+                }
+              );
+              
+              if (driveResults && driveResults.length > 0) {
+                paymentScreenshotDriveId = driveResults[0].fileId;
+                console.log(`Payment screenshot uploaded to Drive: ${paymentScreenshotDriveId}`);
+              }
+            } catch (appsScriptError) {
+              console.error('Apps Script upload failed for payment screenshot:', appsScriptError);
+              // Fallback to placeholder
+              paymentScreenshotDriveId = `error_${Date.now()}_${screenshotFilename}`;
+            }
+          } else {
+            // Fallback: Use direct Drive API (or placeholder)
+            const driveResult = await uploadToDrive(
+              screenshotBuffer,
+              screenshotFilename,
+              orderId
+            );
+            paymentScreenshotDriveId = driveResult.fileId;
+          }
 
           // Clean up temp file
           if (fs.existsSync(paymentScreenshot.filepath)) {
-            fs.unlinkSync(paymentScreenshot.filepath);
+            try {
+              fs.unlinkSync(paymentScreenshot.filepath);
+            } catch (unlinkError) {
+              console.warn('Could not delete temp payment screenshot file:', unlinkError);
+            }
           }
         } catch (error) {
           console.error('Error processing payment screenshot:', error);
+          // Continue with placeholder even if upload fails
         }
       }
 
