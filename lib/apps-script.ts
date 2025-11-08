@@ -271,19 +271,21 @@ export async function uploadBatchToDriveViaAppsScript(
   },
   onProgress?: (progress: { uploaded: number; total: number; chunk: number; totalChunks: number }) => void
 ): Promise<UploadResult[]> {
-  // Get Apps Script URL from environment variable (client-side)
-  // Must use NEXT_PUBLIC_ prefix for client-side access
-  const directUrl = typeof window !== 'undefined' 
+  // Use Vercel proxy to handle CORS (Apps Script doesn't return CORS headers for POST from browsers)
+  // The proxy forwards to Apps Script server-to-server (no CORS needed)
+  // We still chunk files to stay under Vercel's limits per request
+  const proxyUrl = '/api/proxy-upload';
+  const appsScriptUrl = typeof window !== 'undefined' 
     ? (process.env.NEXT_PUBLIC_APPS_SCRIPT_WEB_APP_URL)
     : undefined;
 
-  if (!directUrl) {
+  if (!appsScriptUrl) {
     const errorMsg = 'NEXT_PUBLIC_APPS_SCRIPT_WEB_APP_URL not configured. Please set it in .env.local and restart the dev server.';
     console.error(errorMsg);
     throw new Error(errorMsg);
   }
 
-  console.log(`[Upload] Using direct Apps Script URL: ${directUrl.substring(0, 50)}... (bypassing Vercel, no 4.5MB limit)`);
+  console.log(`[Upload] Using Vercel proxy: ${proxyUrl} (handles CORS, forwards to Apps Script)`);
 
   try {
     const timestamp = new Date().toISOString();
@@ -312,9 +314,10 @@ export async function uploadBatchToDriveViaAppsScript(
       }))
     );
 
-    // Apps Script request size limit: ~45MB (to be safe, use 40MB)
-    // Base64 encoding increases size by ~33%, so we limit raw payload to ~30MB
-    const MAX_CHUNK_SIZE = 30 * 1024 * 1024; // 30MB per chunk (becomes ~40MB when base64 encoded in JSON)
+    // Vercel proxy limit: 4.5MB per request (but we can send multiple chunks)
+    // Apps Script can handle larger requests, but Vercel proxy limits us
+    // Chunk size: 3MB per chunk (becomes ~4MB when base64 encoded in JSON) to stay under 4.5MB
+    const MAX_CHUNK_SIZE = 3 * 1024 * 1024; // 3MB per chunk (becomes ~4MB when base64 encoded in JSON)
     
     // Group files into chunks
     interface Chunk {
@@ -401,13 +404,13 @@ export async function uploadBatchToDriveViaAppsScript(
       console.log(`[Upload] Chunk ${chunkIndex + 1} payload size: ${payloadSizeMB.toFixed(2)}MB`);
       
       if (payloadString.length > MAX_CHUNK_SIZE * 1.5) {
-        console.warn(`[Upload] Warning: Chunk ${chunkIndex + 1} payload is large (${payloadSizeMB.toFixed(2)}MB). Apps Script limit is ~45MB.`);
+        console.warn(`[Upload] Warning: Chunk ${chunkIndex + 1} payload is large (${payloadSizeMB.toFixed(2)}MB). Vercel proxy limit is 4.5MB.`);
       }
 
-      // Send to Apps Script (direct upload, bypasses Vercel 4.5MB limit!)
+      // Send to Vercel proxy (handles CORS, forwards to Apps Script server-to-server)
       const requestStartTime = Date.now();
       
-      const response = await fetch(directUrl, {
+      const response = await fetch(proxyUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

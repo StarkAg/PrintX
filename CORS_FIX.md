@@ -1,85 +1,74 @@
-# CORS Error Fix Guide
+# CORS Fix for Apps Script Uploads
 
-## ❌ Error You're Seeing
+## Problem
+Apps Script Web Apps don't automatically return CORS headers for POST requests from browsers, even when deployed with "Anyone" access. This causes CORS errors when trying to upload files directly from the browser.
 
-```
-Access to fetch at 'https://script.google.com/macros/s/.../exec' from origin 'https://printx-simple.vercel.app' 
-has been blocked by CORS policy: Response to preflight request doesn't pass access control check: 
-No 'Access-Control-Allow-Origin' header is present on the requested resource.
-```
+## Solution
+Use the Vercel proxy (`/api/proxy-upload`) which:
+1. Handles CORS headers properly for browser requests
+2. Forwards requests to Apps Script server-to-server (no CORS needed)
+3. Allows chunking to stay under Vercel's 4.5MB limit per request
 
-## 🔧 Fix: Update Apps Script Deployment
+## Changes Made
 
-The issue is that your Apps Script Web App is **not deployed with "Anyone" access**. Here's how to fix it:
+### 1. Updated `lib/apps-script.ts`
+- Changed from direct Apps Script URL to Vercel proxy (`/api/proxy-upload`)
+- Updated chunk size to 3MB per chunk (stays under 4.5MB when base64 encoded)
+- Proxy handles CORS, forwards to Apps Script server-to-server
 
-### Step 1: Open Apps Script Editor
+### 2. Updated `pages/api/proxy-upload.ts`
+- Added fallback to use `NEXT_PUBLIC_APPS_SCRIPT_WEB_APP_URL` if `APPS_SCRIPT_WEB_APP_URL` is not set
+- Properly handles CORS headers for browser requests
 
-1. Go to [script.google.com](https://script.google.com)
-2. Open your PrintX Apps Script project
+## File Size Limits (Updated)
 
-### Step 2: Update Deployment Settings
+### Per Request (Vercel Proxy)
+- **Maximum**: 4.5MB per request
+- **Chunk Size**: 3MB per chunk (becomes ~4MB when base64 encoded in JSON)
+- **Strategy**: Files are automatically chunked if payload exceeds 3MB
 
-1. Click **Deploy** → **Manage deployments**
-2. Click the **pencil icon** (edit) next to your active deployment
-3. Or click **New deployment** if you don't have one yet
+### Per File (Apps Script)
+- **Maximum**: 75MB per file (decoded)
+- **Total**: 500MB total per order
+- **Max Files**: 50 files per order
 
-### Step 3: Configure Deployment
+## How It Works
 
-1. Click the **gear icon** (⚙️) next to "Web app"
-2. Set these settings:
-   - **Execute as**: `Me` (your account)
-   - **Who has access**: `Anyone` ⚠️ **THIS IS CRITICAL!**
-3. Click **Deploy**
-4. **Copy the new Web App URL** (it might be the same or different)
+1. **Client** → Uploads files to `/api/proxy-upload` (Vercel API)
+   - CORS headers are set by the proxy
+   - Files are chunked if needed (3MB per chunk)
 
-### Step 4: Update Environment Variable in Vercel
+2. **Vercel Proxy** → Forwards to Apps Script (server-to-server)
+   - No CORS needed (server-to-server communication)
+   - Uses `APPS_SCRIPT_WEB_APP_URL` or `NEXT_PUBLIC_APPS_SCRIPT_WEB_APP_URL`
 
-1. Go to Vercel Dashboard → Your Project → Settings → Environment Variables
-2. Update `NEXT_PUBLIC_APPS_SCRIPT_WEB_APP_URL` with the new URL
-3. **Redeploy** your Vercel app (or wait for auto-deploy)
+3. **Apps Script** → Uploads to Google Drive
+   - Processes files and uploads to Drive
+   - Logs order data to Google Sheets
 
-### Step 5: Test
+## Environment Variables
 
-1. Try uploading a file again
-2. The CORS error should be gone!
+Set in Vercel Dashboard:
+- `NEXT_PUBLIC_APPS_SCRIPT_WEB_APP_URL` (client-side access)
+- `APPS_SCRIPT_WEB_APP_URL` (server-side access, optional - proxy will use NEXT_PUBLIC_ if not set)
 
-## 🔍 Verify Deployment Settings
+## Testing
 
-After deploying, you can verify the settings by:
+After deploying, test the upload:
+1. Go to your deployed site
+2. Upload a file
+3. Check browser console - should see:
+   ```
+   [Upload] Using Vercel proxy: /api/proxy-upload (handles CORS, forwards to Apps Script)
+   [Upload] Split X file(s) into Y chunk(s) for upload
+   ```
+4. Files should upload successfully without CORS errors
 
-1. Opening the deployment settings again
-2. Checking that "Who has access" shows **"Anyone"**
-3. The URL should end with `/exec`
+## CSP Eval Warning
 
-## ⚠️ Important Notes
+The CSP eval warning is likely a false positive. PDF.js is configured with `isEvalSupported: false`, so it doesn't use eval. The warning might be from:
+- Browser extensions
+- Other third-party libraries
+- Browser's security scanner
 
-- **You MUST redeploy Apps Script** after changing "Who has access" to "Anyone"
-- Just saving the code is NOT enough - you need to create a new deployment or update the existing one
-- Each time you update the deployment, you get a new URL (sometimes it's the same)
-
-## 🐛 Still Not Working?
-
-If you still get CORS errors after following these steps:
-
-1. **Double-check the deployment settings** - make sure "Anyone" is selected
-2. **Clear browser cache** - hard refresh (Cmd+Shift+R or Ctrl+Shift+R)
-3. **Test the Apps Script URL directly** - visit it in a browser, should return JSON
-4. **Check Vercel environment variable** - make sure it matches your Apps Script URL exactly
-5. **Wait a few minutes** - sometimes it takes a moment for the changes to propagate
-
-## 📝 Quick Checklist
-
-- [ ] Apps Script deployed with "Anyone" access
-- [ ] Apps Script redeployed after changing settings
-- [ ] Vercel environment variable updated with correct URL
-- [ ] Vercel app redeployed
-- [ ] Browser cache cleared
-- [ ] Tested file upload
-
-## 🎯 Expected Result
-
-After fixing:
-- ✅ No CORS errors
-- ✅ Files upload successfully to Google Drive
-- ✅ Orders logged to Google Sheets
-- ✅ Success message shown to user
+If you see the warning but uploads work, you can safely ignore it. The CSP is correctly configured without `unsafe-eval`.

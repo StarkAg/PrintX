@@ -36,14 +36,15 @@ export default async function handler(
     return;
   }
 
-  // Use server-side environment variable (not NEXT_PUBLIC_)
-  const appsScriptUrl = process.env.APPS_SCRIPT_WEB_APP_URL;
+  // Use server-side environment variable (can use NEXT_PUBLIC_ or APPS_SCRIPT_WEB_APP_URL)
+  // Prefer APPS_SCRIPT_WEB_APP_URL for server-side, fallback to NEXT_PUBLIC_ if needed
+  const appsScriptUrl = process.env.APPS_SCRIPT_WEB_APP_URL || process.env.NEXT_PUBLIC_APPS_SCRIPT_WEB_APP_URL;
 
   if (!appsScriptUrl) {
-    console.error('APPS_SCRIPT_WEB_APP_URL not configured in Vercel environment variables');
+    console.error('APPS_SCRIPT_WEB_APP_URL or NEXT_PUBLIC_APPS_SCRIPT_WEB_APP_URL not configured in Vercel environment variables');
     res.status(500).json({ 
       error: 'Apps Script URL not configured',
-      message: 'Please set APPS_SCRIPT_WEB_APP_URL in Vercel environment variables'
+      message: 'Please set APPS_SCRIPT_WEB_APP_URL or NEXT_PUBLIC_APPS_SCRIPT_WEB_APP_URL in Vercel environment variables'
     });
     return;
   }
