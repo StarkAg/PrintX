@@ -8,15 +8,35 @@ import React from 'react';
 const FileThumbnail = ({ file }: { file: OrderFile }) => {
   const [imageError, setImageError] = React.useState(false);
   
-  // Priority: Google Drive thumbnail URL > local thumbnail path > fallback icon
+  // Priority: Proxy thumbnail URL > Google Drive thumbnail URL > local thumbnail path > fallback icon
+  // Use proxy endpoint to avoid CORS issues and ensure thumbnails work
+  if (file.driveId && !imageError) {
+    // Use proxy endpoint for thumbnails (more reliable)
+    const proxyThumbnailUrl = `/api/thumbnail/${file.driveId}?size=w200-h200`;
+    return (
+      <img
+        src={proxyThumbnailUrl}
+        alt={file.name}
+        className="w-12 h-12 sm:w-16 sm:h-16 object-cover rounded-md border border-gray"
+        onError={() => {
+          console.warn(`Failed to load thumbnail for ${file.name}, falling back to icon`);
+          setImageError(true);
+        }}
+      />
+    );
+  }
+  
   if (file.thumbnailUrl && !imageError) {
-    // Use Google Drive thumbnail URL
+    // Fallback: Use direct Google Drive thumbnail URL
     return (
       <img
         src={file.thumbnailUrl}
         alt={file.name}
         className="w-12 h-12 sm:w-16 sm:h-16 object-cover rounded-md border border-gray"
-        onError={() => setImageError(true)}
+        onError={() => {
+          console.warn(`Failed to load direct thumbnail for ${file.name}, falling back to icon`);
+          setImageError(true);
+        }}
       />
     );
   }

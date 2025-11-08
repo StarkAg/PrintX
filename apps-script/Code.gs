@@ -144,6 +144,16 @@ function doPost(e) {
         console.log(`✅ Successfully uploaded: ${safeName} (ID: ${driveFile.getId()})`);
 
         const fileId = driveFile.getId();
+        
+        // Make file publicly accessible (viewable by anyone with the link)
+        // This is required for thumbnails to work without authentication
+        try {
+          driveFile.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+          console.log(`✅ Made file publicly accessible: ${safeName}`);
+        } catch (shareErr) {
+          console.warn(`⚠️ Could not set file sharing (may already be shared): ${shareErr}`);
+        }
+        
         const webViewLink = driveFile.getUrl();
         // Get download URL (may be null for some file types)
         let webContentLink = null;
@@ -154,13 +164,25 @@ function doPost(e) {
           webContentLink = webViewLink;
         }
         
-        // Get thumbnail URL for images and PDFs
-        // Google Drive provides thumbnail URLs in the format: https://drive.google.com/thumbnail?id=FILE_ID&sz=w200
+        // Get thumbnail URL using Drive API
+        // Use the Drive API v3 to get thumbnailLink (more reliable than constructing URL)
         let thumbnailUrl = null;
         const mimeType = f.mimeType || 'application/octet-stream';
         if (mimeType.startsWith('image/') || mimeType === 'application/pdf') {
-          // For images and PDFs, use Drive thumbnail URL
-          thumbnailUrl = `https://drive.google.com/thumbnail?id=${fileId}&sz=w200`;
+          try {
+            // Use Drive API v3 to get thumbnail link
+            // Format: https://www.googleapis.com/drive/v3/files/{fileId}?fields=thumbnailLink&alt=media
+            // But we can also use the simpler thumbnail URL format which works for public files
+            // https://drive.google.com/thumbnail?id=FILE_ID&sz=w200-h200 (w200-h200 for 200x200)
+            thumbnailUrl = `https://drive.google.com/thumbnail?id=${fileId}&sz=w200-h200`;
+            
+            // Alternative: Try to get thumbnailLink from Drive API (requires OAuth, more complex)
+            // For now, use the constructed URL which works for publicly accessible files
+          } catch (thumbErr) {
+            console.warn(`⚠️ Could not get thumbnail for ${safeName}: ${thumbErr}`);
+            // Fallback: try the simple thumbnail URL anyway
+            thumbnailUrl = `https://drive.google.com/thumbnail?id=${fileId}&sz=w200`;
+          }
         }
 
         uploadedFiles.push({
@@ -257,21 +279,44 @@ function doPost(e) {
 // --- Get or create Drive folder ---
 function getOrCreateFolder(folderId) {
   try {
+    let folder;
     // If folder ID is provided and valid, use it
     if (folderId && folderId.trim() !== '' && folderId !== 'YOUR_DRIVE_FOLDER_ID_HERE') {
-      return DriveApp.getFolderById(folderId);
+      folder = DriveApp.getFolderById(folderId);
+    } else {
+      // Otherwise, create or find "PrintX Orders" folder
+      const root = DriveApp.getRootFolder();
+      const name = 'PrintX Orders';
+      const it = root.getFoldersByName(name);
+      if (it.hasNext()) {
+        folder = it.next();
+      } else {
+        folder = root.createFolder(name);
+      }
     }
-    // Otherwise, create or find "PrintX Orders" folder
-    const root = DriveApp.getRootFolder();
-    const name = 'PrintX Orders';
-    const it = root.getFoldersByName(name);
-    if (it.hasNext()) return it.next();
-    return root.createFolder(name);
+    
+    // Make folder publicly accessible (viewable by anyone with the link)
+    // This ensures files uploaded to this folder are accessible for thumbnails
+    try {
+      folder.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+      console.log('✅ Made folder publicly accessible for thumbnails');
+    } catch (shareErr) {
+      console.warn('⚠️ Could not set folder sharing (may already be shared):', shareErr);
+    }
+    
+    return folder;
   } catch (err) {
     console.error('getOrCreateFolder error:', err);
     // Try to create folder in root as fallback
     try {
-      return DriveApp.getRootFolder().createFolder('PrintX Orders');
+      const folder = DriveApp.getRootFolder().createFolder('PrintX Orders');
+      // Try to make it public
+      try {
+        folder.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+      } catch (shareErr) {
+        console.warn('⚠️ Could not set fallback folder sharing:', shareErr);
+      }
+      return folder;
     } catch (fallbackErr) {
       console.error('Fallback folder creation failed:', fallbackErr);
       return null;
