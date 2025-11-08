@@ -153,14 +153,24 @@ function doPost(e) {
           // Some file types don't support direct download URLs
           webContentLink = webViewLink;
         }
+        
+        // Get thumbnail URL for images and PDFs
+        // Google Drive provides thumbnail URLs in the format: https://drive.google.com/thumbnail?id=FILE_ID&sz=w200
+        let thumbnailUrl = null;
+        const mimeType = f.mimeType || 'application/octet-stream';
+        if (mimeType.startsWith('image/') || mimeType === 'application/pdf') {
+          // For images and PDFs, use Drive thumbnail URL
+          thumbnailUrl = `https://drive.google.com/thumbnail?id=${fileId}&sz=w200`;
+        }
 
         uploadedFiles.push({
           name: safeName,
           fileId: fileId,
           webViewLink: webViewLink,
           webContentLink: webContentLink || webViewLink,
+          thumbnailUrl: thumbnailUrl,
           size: decodedSize,
-          mimeType: f.mimeType || 'application/octet-stream'
+          mimeType: mimeType
         });
 
       } catch (innerErr) {
@@ -308,6 +318,7 @@ function logToSheet(orderData, uploadedFiles, errors, fileOptionsMap) {
       fileId: f.fileId,
       webViewLink: f.webViewLink,
       webContentLink: f.webContentLink,
+      thumbnailUrl: f.thumbnailUrl || null,
       size: f.size,
       mimeType: f.mimeType,
       options: (fileOptionsMap && fileOptionsMap[f.name]) || {
@@ -427,6 +438,7 @@ function getOrderFromSheet(orderId) {
             },
             driveId: f.fileId || '',
             webViewLink: f.webViewLink || '',
+            thumbnailUrl: f.thumbnailUrl || null, // Google Drive thumbnail URL
           })),
           total: totalColIndex !== -1 ? (parseFloat(row[totalColIndex]) || 0) : 0,
           vpa: vpaColIndex !== -1 ? (row[vpaColIndex] || '') : '',

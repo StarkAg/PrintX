@@ -18,6 +18,7 @@ interface Order {
     };
     driveId: string;
     webViewLink?: string;
+    thumbnailUrl?: string | null; // Google Drive thumbnail URL
   }>;
   total: number;
   vpa: string;

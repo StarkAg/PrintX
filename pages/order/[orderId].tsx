@@ -3,18 +3,37 @@ import Head from 'next/head';
 import Link from 'next/link';
 import path from 'path';
 import fs from 'fs';
+import React from 'react';
 
 const FileThumbnail = ({ file }: { file: OrderFile }) => {
-  if (file.thumbnailPath) {
+  const [imageError, setImageError] = React.useState(false);
+  
+  // Priority: Google Drive thumbnail URL > local thumbnail path > fallback icon
+  if (file.thumbnailUrl && !imageError) {
+    // Use Google Drive thumbnail URL
+    return (
+      <img
+        src={file.thumbnailUrl}
+        alt={file.name}
+        className="w-12 h-12 sm:w-16 sm:h-16 object-cover rounded-md border border-gray"
+        onError={() => setImageError(true)}
+      />
+    );
+  }
+
+  if (file.thumbnailPath && !imageError) {
+    // Fallback: local thumbnail path (for local dev)
     return (
       <img
         src={`/${file.thumbnailPath}`}
         alt={file.name}
         className="w-12 h-12 sm:w-16 sm:h-16 object-cover rounded-md border border-gray"
+        onError={() => setImageError(true)}
       />
     );
   }
 
+  // Fallback: Show icon based on file type
   const ext = file.name.split('.').pop()?.toLowerCase();
   if (ext === 'pdf') {
     return (
@@ -40,7 +59,9 @@ interface OrderFile {
     binding?: string;
   };
   driveId: string;
-  thumbnailPath?: string;
+  thumbnailPath?: string; // Local thumbnail path (for local dev)
+  thumbnailUrl?: string | null; // Google Drive thumbnail URL
+  webViewLink?: string; // Google Drive view link
 }
 
 interface Order {
@@ -211,11 +232,27 @@ export default function OrderStatus({ orderId, order }: OrderStatusProps) {
                   Payment Screenshot
                 </h3>
                 <div className="border border-gray rounded-lg p-2 bg-card-hover">
-                  <img
-                    src={`/${order.paymentScreenshotPath}`}
-                    alt="Payment screenshot"
-                    className="rounded-lg w-full h-auto max-h-64 sm:max-h-96 object-contain"
-                  />
+                  {/* Payment screenshot can be a Google Drive URL or local path */}
+                  {order.paymentScreenshotPath.startsWith('http') ? (
+                    <img
+                      src={order.paymentScreenshotPath}
+                      alt="Payment screenshot"
+                      className="rounded-lg w-full h-auto max-h-64 sm:max-h-96 object-contain"
+                      onError={(e) => {
+                        // If Drive URL fails, try thumbnail URL
+                        const target = e.target as HTMLImageElement;
+                        if (order.paymentScreenshotDriveId) {
+                          target.src = `https://drive.google.com/thumbnail?id=${order.paymentScreenshotDriveId}&sz=w800`;
+                        }
+                      }}
+                    />
+                  ) : (
+                    <img
+                      src={`/${order.paymentScreenshotPath}`}
+                      alt="Payment screenshot"
+                      className="rounded-lg w-full h-auto max-h-64 sm:max-h-96 object-contain"
+                    />
+                  )}
                 </div>
               </div>
             )}
