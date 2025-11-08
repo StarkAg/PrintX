@@ -47,7 +47,11 @@ export default function FileUploader({
         data: arrayBuffer,
         useWorkerFetch: false,
         isEvalSupported: false,
+        useSystemFonts: false, // Disable system fonts to avoid eval
         verbosity: 0, // Suppress console warnings
+        // Disable features that might use eval
+        disableAutoFetch: true,
+        disableStream: true,
       });
       const pdf = await loadingTask.promise;
       const page = await pdf.getPage(1);

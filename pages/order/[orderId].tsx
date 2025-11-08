@@ -7,9 +7,32 @@ import React from 'react';
 
 const FileThumbnail = ({ file }: { file: OrderFile }) => {
   const [imageError, setImageError] = React.useState(false);
+  const [isClient, setIsClient] = React.useState(false);
   
+  // Ensure this only renders on client to avoid hydration mismatch
+  React.useEffect(() => {
+    setIsClient(true);
+  }, []);
+  
+  // During SSR, always show icon to avoid hydration mismatch
+  if (!isClient) {
+    const ext = file.name.split('.').pop()?.toLowerCase();
+    if (ext === 'pdf') {
+      return (
+        <span className="inline-flex items-center justify-center w-12 h-12 sm:w-16 sm:h-16 rounded-md bg-red-600/80 border border-red-400 text-xs font-bold text-white">
+          PDF
+        </span>
+      );
+    }
+    return (
+      <span className="inline-flex items-center justify-center w-12 h-12 sm:w-16 sm:h-16 rounded-md bg-gray-700 border border-gray-500 text-xs font-semibold text-white">
+        IMG
+      </span>
+    );
+  }
+  
+  // Client-side rendering with thumbnail support
   // Priority: Proxy thumbnail URL > Google Drive thumbnail URL > local thumbnail path > fallback icon
-  // Use proxy endpoint to avoid CORS issues and ensure thumbnails work
   if (file.driveId && !imageError) {
     // Use proxy endpoint for thumbnails (more reliable)
     const proxyThumbnailUrl = `/api/thumbnail/${file.driveId}?size=w200-h200`;
