@@ -17,10 +17,38 @@ const MAX_FILES = 50; // Increased limit for more files
 // Note: Google Apps Script Web Apps automatically handle CORS when deployed correctly
 // This function is here for explicit handling, but may not be called by Apps Script
 
-// --- Health check ---
+// --- Health check / Get order by ID ---
 function doGet(e) {
-  // This endpoint helps verify CORS is working
-  // Visit the Web App URL in a browser - should return JSON
+  // Check if this is a health check or order lookup
+  const orderId = e?.parameter?.orderId;
+  
+  // If orderId is provided, fetch order from Sheet
+  if (orderId) {
+    try {
+      const order = getOrderFromSheet(orderId);
+      if (order) {
+        return createResponse(200, {
+          success: true,
+          order: order
+        });
+      } else {
+        return createResponse(404, {
+          success: false,
+          error: 'Order not found',
+          message: `Order with ID ${orderId} not found in Google Sheets`
+        });
+      }
+    } catch (err) {
+      console.error('Error fetching order:', err);
+      return createResponse(500, {
+        success: false,
+        error: 'Failed to fetch order',
+        details: err.toString()
+      });
+    }
+  }
+  
+  // Default: health check
   return createResponse(200, {
     status: 'ok',
     service: 'PrintX Drive Upload',
@@ -46,6 +74,16 @@ function doPost(e) {
 
     const files = Array.isArray(requestData.files) ? requestData.files : [];
     const orderData = requestData.orderData || {};
+    
+    // Extract file options from the files array (they're included in each file object)
+    // Store them in a map for easy lookup when logging to Sheet
+    const fileOptionsMap = {};
+    for (let i = 0; i < files.length; i++) {
+      const f = files[i];
+      if (f.name && f.options) {
+        fileOptionsMap[f.name] = f.options;
+      }
+    }
 
     if (files.length === 0) {
       return createResponse(400, { error: 'No files provided' });
@@ -167,7 +205,8 @@ function doPost(e) {
           status: orderData.status || 'Pending'
         };
         // Use regular files (not payment screenshot) for order logging
-        orderRowNumber = logToSheet(orderDataWithScreenshot, regularFiles, errors);
+        // Pass fileOptionsMap so we can store file options in the Sheet
+        orderRowNumber = logToSheet(orderDataWithScreenshot, regularFiles, errors, fileOptionsMap);
       } catch (sheetErr) {
         console.error('Sheet log error:', sheetErr);
         // Don't fail the request if sheet logging fails
@@ -231,7 +270,7 @@ function getOrCreateFolder(folderId) {
 }
 
 // --- Store full order data in Sheet ---
-function logToSheet(orderData, uploadedFiles, errors) {
+function logToSheet(orderData, uploadedFiles, errors, fileOptionsMap) {
   try {
     // Double-check SHEET_ID is valid (should be checked before calling, but be safe)
     if (!SHEET_ID || SHEET_ID.trim() === '' || SHEET_ID === 'YOUR_SHEET_ID_HERE') {
@@ -263,6 +302,7 @@ function logToSheet(orderData, uploadedFiles, errors) {
     const status = orderData.status || 'Pending';
     
     // Store full file data as JSON for complete order information
+    // Use fileOptionsMap to get options for each file
     const fileData = uploadedFiles.map(f => ({
       name: f.name,
       fileId: f.fileId,
@@ -270,7 +310,12 @@ function logToSheet(orderData, uploadedFiles, errors) {
       webContentLink: f.webContentLink,
       size: f.size,
       mimeType: f.mimeType,
-      options: orderData.files && orderData.files.find(ff => ff.name === f.name)?.options || {}
+      options: (fileOptionsMap && fileOptionsMap[f.name]) || {
+        format: 'A4',
+        color: 'B&W',
+        paperGSM: '40gsm',
+        binding: 'None'
+      }
     }));
     
     const fileDataJson = JSON.stringify(fileData);
@@ -317,6 +362,90 @@ function doOptions(e) {
   // Apps Script will automatically add CORS headers when deployed as "Anyone"
   return ContentService.createTextOutput('')
     .setMimeType(ContentService.MimeType.TEXT);
+}
+
+// --- Get order from Sheet by Order ID ---
+function getOrderFromSheet(orderId) {
+  try {
+    // Check if SHEET_ID is configured
+    if (!SHEET_ID || SHEET_ID.trim() === '' || SHEET_ID === 'YOUR_SHEET_ID_HERE') {
+      console.log('Sheet ID not configured, cannot fetch order');
+      return null;
+    }
+    
+    const sheet = SpreadsheetApp.openById(SHEET_ID).getActiveSheet();
+    const data = sheet.getDataRange().getValues();
+    
+    // First row is headers
+    if (data.length < 2) {
+      return null; // No orders in sheet
+    }
+    
+    // Find header row
+    const headers = data[0];
+    const orderIdColIndex = headers.indexOf('Order ID');
+    
+    if (orderIdColIndex === -1) {
+      console.error('Order ID column not found in sheet');
+      return null;
+    }
+    
+    // Find the row with matching order ID
+    for (let i = 1; i < data.length; i++) {
+      const row = data[i];
+      if (row[orderIdColIndex] === orderId) {
+        // Found the order - construct order object
+        const timestampColIndex = headers.indexOf('Timestamp');
+        const statusColIndex = headers.indexOf('Status');
+        const totalColIndex = headers.indexOf('Total');
+        const vpaColIndex = headers.indexOf('VPA');
+        const fileDataColIndex = headers.indexOf('File Data (JSON)');
+        const paymentScreenshotDriveIdColIndex = headers.indexOf('Payment Screenshot Drive ID');
+        const paymentScreenshotPathColIndex = headers.indexOf('Payment Screenshot Path');
+        
+        // Parse file data from JSON
+        let files = [];
+        try {
+          if (fileDataColIndex !== -1 && row[fileDataColIndex]) {
+            files = JSON.parse(row[fileDataColIndex]);
+          }
+        } catch (parseErr) {
+          console.error('Error parsing file data:', parseErr);
+          files = [];
+        }
+        
+        // Construct order object
+        const order = {
+          orderId: orderId,
+          files: files.map((f) => ({
+            name: f.name || '',
+            options: f.options || {
+              format: 'A4',
+              color: 'B&W',
+              paperGSM: '40gsm',
+              binding: 'None'
+            },
+            driveId: f.fileId || '',
+            webViewLink: f.webViewLink || '',
+          })),
+          total: totalColIndex !== -1 ? (parseFloat(row[totalColIndex]) || 0) : 0,
+          vpa: vpaColIndex !== -1 ? (row[vpaColIndex] || '') : '',
+          paymentScreenshotDriveId: paymentScreenshotDriveIdColIndex !== -1 ? (row[paymentScreenshotDriveIdColIndex] || '') : '',
+          paymentScreenshotPath: paymentScreenshotPathColIndex !== -1 ? (row[paymentScreenshotPathColIndex] || '') : '',
+          createdAt: timestampColIndex !== -1 ? (row[timestampColIndex] || new Date().toISOString()) : new Date().toISOString(),
+          status: statusColIndex !== -1 ? (row[statusColIndex] || 'Pending') : 'Pending'
+        };
+        
+        return order;
+      }
+    }
+    
+    // Order not found
+    return null;
+  } catch (err) {
+    console.error('getOrderFromSheet error:', err);
+    return null;
+  }
 }
 
 // --- Local test runner (run in Apps Script IDE) ---

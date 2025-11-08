@@ -240,14 +240,59 @@ export const getServerSideProps: GetServerSideProps<OrderStatusProps> = async (
   let order: Order | null = null;
 
   try {
-    const ordersPath = path.join(process.cwd(), 'data', 'orders.json');
-    if (fs.existsSync(ordersPath)) {
-      const fileData = fs.readFileSync(ordersPath, 'utf-8');
-      const orders: Order[] = JSON.parse(fileData);
-      order = orders.find((o) => o.orderId === orderId) || null;
+    // Fetch from API endpoint (which fetches from Google Sheets via Apps Script)
+    // Use absolute URL for server-side fetch
+    const protocol = context.req.headers['x-forwarded-proto'] || 'http';
+    const host = context.req.headers.host || 'localhost:3000';
+    const baseUrl = `${protocol}://${host}`;
+    
+    try {
+      const apiUrl = `${baseUrl}/api/order/${orderId}`;
+      console.log(`[Order Page] Fetching order from: ${apiUrl}`);
+      
+      const apiResponse = await fetch(apiUrl, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json',
+        },
+      });
+
+      if (apiResponse.ok) {
+        order = await apiResponse.json();
+        console.log(`[Order Page] Successfully fetched order ${orderId} from API`);
+      } else if (apiResponse.status === 404) {
+        console.log(`[Order Page] Order ${orderId} not found in Google Sheets (404)`);
+        // Order not found - will show "not found" message
+      } else {
+        const errorText = await apiResponse.text().catch(() => '');
+        console.error(`[Order Page] API returned ${apiResponse.status}:`, errorText);
+        // Fall back to local file if API fails
+      }
+    } catch (apiError) {
+      console.error('[Order Page] Error fetching from API:', apiError);
+      // Fall back to local file if API call fails
+    }
+
+    // Fallback: Try to load from local JSON file (for local development)
+    // This won't work on Vercel (read-only filesystem), but it's useful for local dev
+    if (!order) {
+      try {
+        const ordersPath = path.join(process.cwd(), 'data', 'orders.json');
+        if (fs.existsSync(ordersPath)) {
+          const fileData = fs.readFileSync(ordersPath, 'utf-8');
+          const orders: Order[] = JSON.parse(fileData);
+          order = orders.find((o) => o.orderId === orderId) || null;
+          if (order) {
+            console.log(`[Order Page] Found order ${orderId} in local file`);
+          }
+        }
+      } catch (fileError) {
+        console.error('[Order Page] Error loading from local file:', fileError);
+        // This is expected on Vercel (read-only filesystem)
+      }
     }
   } catch (error) {
-    console.error('Error loading order data:', error);
+    console.error('[Order Page] Error loading order data:', error);
   }
 
   return {
