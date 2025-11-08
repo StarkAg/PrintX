@@ -33,20 +33,15 @@ interface UploadResult {
   fileName: string;
 }
 
-interface QuotaError {
-  code: string;
-  message: string;
-  isQuotaExceeded: boolean;
-}
-
 /**
  * Checks if an error is a Google Drive quota error
  */
-function isQuotaError(error: any): boolean {
+function isQuotaError(error: unknown): boolean {
   if (!error) return false;
   
-  const errorMessage = error.message?.toLowerCase() || '';
-  const errorCode = error.code?.toString() || '';
+  const errorObj = error as Record<string, unknown>;
+  const errorMessage = (typeof errorObj.message === 'string' ? errorObj.message : '').toLowerCase();
+  const errorCode = (typeof errorObj.code === 'string' || typeof errorObj.code === 'number' ? String(errorObj.code) : '').toLowerCase();
   
   // Common quota error indicators
   const quotaIndicators = [
@@ -173,9 +168,10 @@ export async function uploadToDrive(
       fileId: `placeholder_${Date.now()}_${filename}`,
       fileName: filename,
     };
-  } catch (error: any) {
-    const errorMessage = error.message || 'Unknown error';
-    const errorCode = error.code || 'UNKNOWN';
+  } catch (error) {
+    const errorObj = error as Record<string, unknown>;
+    const errorMessage = (typeof errorObj.message === 'string' ? errorObj.message : 'Unknown error');
+    const errorCode = (typeof errorObj.code === 'string' || typeof errorObj.code === 'number' ? String(errorObj.code) : 'UNKNOWN');
     
     // Check for quota errors
     if (isQuotaError(error)) {
@@ -229,7 +225,7 @@ export async function uploadBatchToDrive(
     try {
       const result = await uploadToDrive(file.buffer, file.filename, orderId);
       results.push(result);
-    } catch (error: any) {
+    } catch (error) {
       // If quota error, stop batch and throw
       if (isQuotaError(error)) {
         console.error(

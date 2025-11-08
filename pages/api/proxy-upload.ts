@@ -76,11 +76,11 @@ export default async function handler(
 
     // Forward the response with CORS headers already set
     res.status(response.status).json(data);
-  } catch (error: any) {
+  } catch (error) {
     console.error('[Proxy] Error forwarding request:', error);
     res.status(500).json({
       error: 'Failed to proxy request to Apps Script',
-      message: error?.message || 'Unknown error',
+      message: error instanceof Error ? error.message : 'Unknown error',
     });
   }
 }

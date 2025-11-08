@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   FileWithOptions,
   FileOptions,
@@ -60,10 +60,13 @@ export default function FileUploader({
       canvas.height = viewport.height;
       canvas.width = viewport.width;
 
-      await page.render({
+      // PDF.js render method - returns RenderTask which has a promise property
+      const renderTask = page.render({
         canvasContext: context,
         viewport: viewport,
-      } as any).promise;
+        canvas: canvas,
+      });
+      await renderTask.promise;
 
       return canvas.toDataURL('image/png');
     } catch (error) {
@@ -76,9 +79,8 @@ export default function FileUploader({
   const handleFileSelect = async (selectedFiles: FileList | null) => {
     if (!selectedFiles) return;
 
-    // Vercel proxy limit: 4.5MB total request (base64 increases size by ~33%)
-    // So we limit to 3.4MB per file to stay safely under 4.5MB when base64 encoded
-    const maxFileSize = 3.4 * 1024 * 1024; // 3.4MB per file (becomes ~4.5MB when base64 encoded)
+    // Apps Script limits: 75MB per file, 500MB total, 50 files max
+    const maxFileSize = 75 * 1024 * 1024; // 75MB per file
     const maxFiles = 50; // Max files per order
     const newFiles: FileWithOptions[] = [];
     const skippedFiles: string[] = [];
@@ -100,7 +102,7 @@ export default function FileUploader({
       }
       if (file.size > maxFileSize) {
         skippedFiles.push(
-          `${file.name} (${(file.size / (1024 * 1024)).toFixed(2)}MB - exceeds 3.4MB limit)`
+          `${file.name} (${(file.size / (1024 * 1024)).toFixed(2)}MB - exceeds 75MB limit)`
         );
         continue;
       }
@@ -137,7 +139,7 @@ export default function FileUploader({
     // Show warning for skipped files
     if (skippedFiles.length > 0) {
       alert(
-        `Some files were skipped:\n${skippedFiles.join('\n')}\n\nMaximum file size is 3.4MB per file.`
+        `Some files were skipped:\n${skippedFiles.join('\n')}\n\nMaximum file size is 75MB per file.`
       );
     }
   };
@@ -216,7 +218,7 @@ export default function FileUploader({
           Accepted: PDF, PNG, JPG, JPEG
         </p>
         <p className="text-gray-500 text-xs mt-2">
-          Limits: 3.4MB per file, 4.5MB total, max 50 files per order
+          Limits: 75MB per file, 500MB total, max 50 files per order
         </p>
       </div>
 
@@ -259,15 +261,15 @@ export default function FileUploader({
                       </h3>
                       <p
                         className={`text-sm mt-1 ${
-                          fileWithOptions.file.size > 3.4 * 1024 * 1024
+                          fileWithOptions.file.size > 75 * 1024 * 1024
                             ? 'text-red-400'
                             : 'text-gray-medium'
                         }`}
                       >
                         {(fileWithOptions.file.size / (1024 * 1024)).toFixed(2)} MB
-                        {fileWithOptions.file.size > 3.4 * 1024 * 1024 && (
+                        {fileWithOptions.file.size > 75 * 1024 * 1024 && (
                           <span className="ml-2 text-red-400">
-                            ⚠ Exceeds 3.4MB limit
+                            ⚠ Exceeds 75MB limit
                           </span>
                         )}
                       </p>

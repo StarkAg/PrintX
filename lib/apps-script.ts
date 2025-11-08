@@ -145,8 +145,8 @@ export async function uploadToDriveViaAppsScript(
       webViewLink: uploadedFile.webViewLink,
       webContentLink: uploadedFile.webContentLink || uploadedFile.webViewLink,
     };
-  } catch (error: any) {
-    const errorMessage = error.message || 'Unknown error';
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     console.error(
       `[${new Date().toISOString()}] ❌ Apps Script upload failed: ${file.name} - ${errorMessage}`
     );
@@ -241,8 +241,8 @@ export async function uploadBuffersToDriveViaAppsScript(
       webViewLink: f.webViewLink,
       webContentLink: f.webContentLink || f.webViewLink, // Fallback to webViewLink if not available
     }));
-  } catch (error: any) {
-    const errorMessage = error.message || 'Unknown error';
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     console.error(
       `[${new Date().toISOString()}] ❌ Apps Script batch upload failed: ${errorMessage}`
     );
@@ -253,37 +253,37 @@ export async function uploadBuffersToDriveViaAppsScript(
 /**
  * Client-side: Batch upload multiple files to Google Drive via Apps Script
  * Uses NEXT_PUBLIC_APPS_SCRIPT_WEB_APP_URL for direct client-side uploads (bypasses Vercel 4.5MB limit)
+ * 
+ * Implements chunking to handle large payloads (Apps Script limit: ~45MB per request)
+ * Files are grouped into chunks so each request stays under the limit
  */
 export async function uploadBatchToDriveViaAppsScript(
-  files: Array<{ file: File; orderId?: string; options?: any; isPaymentScreenshot?: boolean }>,
+  files: Array<{ 
+    file: File; 
+    orderId?: string; 
+    options?: Record<string, unknown>; 
+    isPaymentScreenshot?: boolean;
+  }>,
   orderData?: {
     orderId: string;
     total: number;
     vpa: string;
-  }
+  },
+  onProgress?: (progress: { uploaded: number; total: number; chunk: number; totalChunks: number }) => void
 ): Promise<UploadResult[]> {
-  // Use Vercel proxy to handle CORS (fixes CORS issues with Apps Script)
-  // The proxy adds CORS headers and forwards to Apps Script server-to-server
-  const useProxy = true; // Always use proxy to avoid CORS issues
-  
-  const proxyUrl = '/api/proxy-upload';
+  // Get Apps Script URL from environment variable (client-side)
+  // Must use NEXT_PUBLIC_ prefix for client-side access
   const directUrl = typeof window !== 'undefined' 
-    ? (process.env.NEXT_PUBLIC_APPS_SCRIPT_WEB_APP_URL || process.env.APPS_SCRIPT_WEB_APP_URL)
-    : process.env.APPS_SCRIPT_WEB_APP_URL;
+    ? (process.env.NEXT_PUBLIC_APPS_SCRIPT_WEB_APP_URL)
+    : undefined;
 
-  const webAppUrl = useProxy ? proxyUrl : directUrl;
-
-  if (!webAppUrl) {
-    const errorMsg = 'APPS_SCRIPT_WEB_APP_URL not configured. Please set it in Vercel environment variables.';
+  if (!directUrl) {
+    const errorMsg = 'NEXT_PUBLIC_APPS_SCRIPT_WEB_APP_URL not configured. Please set it in .env.local and restart the dev server.';
     console.error(errorMsg);
     throw new Error(errorMsg);
   }
 
-  if (useProxy) {
-    console.log(`[Upload] Using Vercel proxy: ${proxyUrl} (handles CORS, forwards to Apps Script)`);
-  } else {
-    console.log(`[Upload] Using direct Apps Script URL: ${directUrl?.substring(0, 50)}...`);
-  }
+  console.log(`[Upload] Using direct Apps Script URL: ${directUrl.substring(0, 50)}... (bypassing Vercel, no 4.5MB limit)`);
 
   try {
     const timestamp = new Date().toISOString();
@@ -291,8 +291,17 @@ export async function uploadBatchToDriveViaAppsScript(
       `[${timestamp}] Starting batch upload via Apps Script: ${files.length} file(s)${orderData?.orderId ? ` [Order: ${orderData.orderId}]` : ''}`
     );
 
-    // Convert all files to base64
-    const filesData = await Promise.all(
+    // Convert all files to base64 (with metadata)
+    interface FileData {
+      name: string;
+      data: string;
+      mimeType: string;
+      size: number;
+      isPaymentScreenshot: boolean;
+      options?: Record<string, unknown>;
+    }
+
+    const filesData: FileData[] = await Promise.all(
       files.map(async (f) => ({
         name: f.file.name,
         data: await fileToBase64(f.file),
@@ -303,87 +312,190 @@ export async function uploadBatchToDriveViaAppsScript(
       }))
     );
 
-    // Prepare request
-    const requestData = {
-      files: filesData,
-      orderData: orderData
-        ? {
-            orderId: orderData.orderId,
-            total: orderData.total,
-            vpa: orderData.vpa,
-            timestamp: new Date().toISOString(),
-          }
-        : undefined,
-    };
-
-    // Send to Apps Script (direct upload, bypasses Vercel 4.5MB limit!)
-    console.log(`[Upload] Sending ${files.length} file(s) to Apps Script...`);
-    const requestStartTime = Date.now();
+    // Apps Script request size limit: ~45MB (to be safe, use 40MB)
+    // Base64 encoding increases size by ~33%, so we limit raw payload to ~30MB
+    const MAX_CHUNK_SIZE = 30 * 1024 * 1024; // 30MB per chunk (becomes ~40MB when base64 encoded in JSON)
     
-    const response = await fetch(webAppUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(requestData),
-    });
-
-    const requestDuration = Date.now() - requestStartTime;
-    console.log(`[Upload] Request completed in ${requestDuration}ms, status: ${response.status}`);
-
-    if (!response.ok) {
-      const errorText = await response.text().catch(() => '');
-      console.error(`[Upload] Error response (${response.status}):`, errorText);
+    // Group files into chunks
+    interface Chunk {
+      files: FileData[];
+      size: number;
+    }
+    
+    const chunks: Chunk[] = [];
+    let currentChunk: FileData[] = [];
+    let currentChunkSize = 0;
+    
+    // Estimate size of orderData in JSON
+    const orderDataSize = orderData ? JSON.stringify(orderData).length : 0;
+    const baseOverhead = 1000; // Base JSON overhead (brackets, keys, etc.)
+    
+    for (const fileData of filesData) {
+      // Estimate file entry size in JSON (name, data, mimeType, size, etc.)
+      const fileEntrySize = JSON.stringify({
+        name: fileData.name,
+        data: fileData.data.substring(0, 100), // Sample
+        mimeType: fileData.mimeType,
+        size: fileData.size,
+        isPaymentScreenshot: fileData.isPaymentScreenshot,
+        options: fileData.options
+      }).length;
+      // Actual size will be larger due to full base64 data
+      const estimatedSize = fileData.data.length + fileEntrySize;
       
-      let errorMessage = `Upload failed (${response.status}): ${response.statusText}`;
-      try {
-        const errorData = JSON.parse(errorText);
-        errorMessage = errorData.error || errorData.message || errorData.details || errorMessage;
-        
-        // Add more context if available
-        if (errorData.details) {
-          errorMessage += ` - ${errorData.details}`;
-        }
-      } catch {
-        if (errorText) {
-          errorMessage = errorText.length > 200 ? errorText.substring(0, 200) + '...' : errorText;
-        }
+      // Check if adding this file would exceed chunk size
+      const wouldExceed = (currentChunkSize + estimatedSize + orderDataSize + baseOverhead) > MAX_CHUNK_SIZE;
+      
+      if (wouldExceed && currentChunk.length > 0) {
+        // Save current chunk and start new one
+        chunks.push({ files: [...currentChunk], size: currentChunkSize });
+        currentChunk = [fileData];
+        currentChunkSize = estimatedSize;
+      } else {
+        // Add to current chunk
+        currentChunk.push(fileData);
+        currentChunkSize += estimatedSize;
       }
-      throw new Error(errorMessage);
     }
-
-    const result: AppsScriptResponse = await response.json();
-    console.log(`[Upload] Response received:`, {
-      success: result.success,
-      uploadedCount: result.uploadedCount,
-      totalCount: result.totalCount,
-      errors: result.errors?.length || 0
-    });
-
-    if (!result.success) {
-      const errorMsg = result.errors?.map((e: any) => e.error || `${e.name || `File ${e.index}`}: ${e.error}`).join(', ') 
-        || 'Apps Script batch upload failed';
-      throw new Error(errorMsg);
+    
+    // Add remaining chunk
+    if (currentChunk.length > 0) {
+      chunks.push({ files: currentChunk, size: currentChunkSize });
     }
+    
+    console.log(`[Upload] Split ${files.length} file(s) into ${chunks.length} chunk(s) for upload`);
 
-    if (result.errors && result.errors.length > 0) {
-      console.error('Apps Script upload errors (some files may have failed):', result.errors);
-      // Still continue if some files succeeded
+    // Upload chunks sequentially
+    const allResults: UploadResult[] = [];
+    let uploadedCount = 0;
+    
+    for (let chunkIndex = 0; chunkIndex < chunks.length; chunkIndex++) {
+      const chunk = chunks[chunkIndex];
+      console.log(`[Upload] Uploading chunk ${chunkIndex + 1}/${chunks.length} (${chunk.files.length} file(s))...`);
+      
+      // Prepare request for this chunk
+      const requestData = {
+        files: chunk.files.map(f => ({
+          name: f.name,
+          data: f.data,
+          mimeType: f.mimeType,
+          size: f.size,
+          isPaymentScreenshot: f.isPaymentScreenshot,
+          options: f.options,
+        })),
+        orderData: orderData
+          ? {
+              orderId: orderData.orderId,
+              total: orderData.total,
+              vpa: orderData.vpa,
+              timestamp: new Date().toISOString(),
+              chunkIndex: chunkIndex + 1,
+              totalChunks: chunks.length,
+            }
+          : undefined,
+      };
+
+      // Check payload size before sending
+      const payloadString = JSON.stringify(requestData);
+      const payloadSizeMB = payloadString.length / (1024 * 1024);
+      console.log(`[Upload] Chunk ${chunkIndex + 1} payload size: ${payloadSizeMB.toFixed(2)}MB`);
+      
+      if (payloadString.length > MAX_CHUNK_SIZE * 1.5) {
+        console.warn(`[Upload] Warning: Chunk ${chunkIndex + 1} payload is large (${payloadSizeMB.toFixed(2)}MB). Apps Script limit is ~45MB.`);
+      }
+
+      // Send to Apps Script (direct upload, bypasses Vercel 4.5MB limit!)
+      const requestStartTime = Date.now();
+      
+      const response = await fetch(directUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: payloadString,
+      });
+
+      const requestDuration = Date.now() - requestStartTime;
+      console.log(`[Upload] Chunk ${chunkIndex + 1} completed in ${requestDuration}ms, status: ${response.status}`);
+
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => '');
+        console.error(`[Upload] Error response for chunk ${chunkIndex + 1} (${response.status}):`, errorText);
+        
+        let errorMessage = `Upload failed (${response.status}): ${response.statusText}`;
+        try {
+          const errorData = JSON.parse(errorText);
+          errorMessage = errorData.error || errorData.message || errorData.details || errorMessage;
+          
+          // Detect quota errors
+          if (errorMessage.includes('QuotaExceeded') || errorMessage.includes('Service invoked too many times')) {
+            errorMessage = 'Google Apps Script quota exceeded. Please try again later or reduce the number of files.';
+          }
+          
+          // Detect file size errors
+          if (errorMessage.includes('too large') || errorMessage.includes('File too large')) {
+            errorMessage = 'File size exceeds Apps Script limit. Please compress files or split into smaller batches.';
+          }
+          
+          if (errorData.details) {
+            errorMessage += ` - ${errorData.details}`;
+          }
+        } catch {
+          if (errorText) {
+            errorMessage = errorText.length > 200 ? errorText.substring(0, 200) + '...' : errorText;
+          }
+        }
+        throw new Error(errorMessage);
+      }
+
+      const result: AppsScriptResponse = await response.json();
+      console.log(`[Upload] Chunk ${chunkIndex + 1} response:`, {
+        success: result.success,
+        uploadedCount: result.uploadedCount,
+        totalCount: result.totalCount,
+        errors: result.errors?.length || 0
+      });
+
+      if (!result.success) {
+        const errorMsg = result.errors?.map((e) => e.error || `${e.name || `File ${e.index}`}: ${e.error}`).join(', ') 
+          || 'Apps Script batch upload failed';
+        throw new Error(errorMsg);
+      }
+
+      if (result.errors && result.errors.length > 0) {
+        console.error(`[Upload] Chunk ${chunkIndex + 1} errors (some files may have failed):`, result.errors);
+        // Still continue if some files succeeded
+      }
+
+      // Collect results
+      const chunkResults = result.files.map((f) => ({
+        fileId: f.fileId,
+        fileName: f.name,
+        webViewLink: f.webViewLink,
+        webContentLink: f.webContentLink || f.webViewLink,
+      }));
+      
+      allResults.push(...chunkResults);
+      uploadedCount += result.uploadedCount;
+      
+      // Report progress
+      if (onProgress) {
+        onProgress({
+          uploaded: uploadedCount,
+          total: files.length,
+          chunk: chunkIndex + 1,
+          totalChunks: chunks.length,
+        });
+      }
     }
 
     console.log(
-      `[${timestamp}] ✅ Batch upload completed: ${result.uploadedCount}/${result.totalCount} file(s)${orderData?.orderId ? ` [Order: ${orderData.orderId}]` : ''}`
+      `[${timestamp}] ✅ Batch upload completed: ${uploadedCount}/${files.length} file(s) uploaded in ${chunks.length} chunk(s)${orderData?.orderId ? ` [Order: ${orderData.orderId}]` : ''}`
     );
 
-    // Map results (handle optional webContentLink)
-    return result.files.map((f) => ({
-      fileId: f.fileId,
-      fileName: f.name,
-      webViewLink: f.webViewLink,
-      webContentLink: f.webContentLink || f.webViewLink, // Fallback to webViewLink if not available
-    }));
-  } catch (error: any) {
-    const errorMessage = error.message || 'Unknown error';
+    return allResults;
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     console.error(
       `[${new Date().toISOString()}] ❌ Apps Script batch upload failed: ${errorMessage}`
     );
@@ -391,6 +503,11 @@ export async function uploadBatchToDriveViaAppsScript(
     // Check if it's a CORS error
     if (errorMessage.includes('CORS') || errorMessage.includes('Failed to fetch') || errorMessage.includes('NetworkError')) {
       throw new Error(`CORS error: Make sure Apps Script is deployed with "Anyone" access. Error: ${errorMessage}`);
+    }
+    
+    // Check for quota errors
+    if (errorMessage.includes('QuotaExceeded') || errorMessage.includes('Service invoked too many times')) {
+      throw new Error('Google Apps Script quota exceeded. Please try again later or reduce the number of files.');
     }
     
     throw new Error(`Failed to upload files via Apps Script: ${errorMessage}`);

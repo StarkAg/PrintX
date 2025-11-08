@@ -35,7 +35,8 @@ export default function Home() {
     return filesSize + screenshotSize;
   }, [files, paymentScreenshot]);
 
-  const maxTotalSize = 500 * 1024 * 1024; // 500MB (Google Drive limit)
+  // Apps Script limits: 75MB per file, 500MB total
+  const maxTotalSize = 500 * 1024 * 1024; // 500MB total (Google Drive limit)
 
   const upiPayload = useMemo(() => {
     const amount = calculatedTotal > 0 ? calculatedTotal.toFixed(2) : undefined;
@@ -90,8 +91,8 @@ export default function Home() {
       return;
     }
 
-    // Check file count limit
-    const maxFiles = 50; // Increased limit
+    // Check file count limit (Apps Script can handle up to 50 files)
+    const maxFiles = 50;
     if (files.length > maxFiles) {
       setError(
         `Maximum ${maxFiles} files allowed per order. Please remove ${files.length - maxFiles} file(s) and try again.`
@@ -100,10 +101,10 @@ export default function Home() {
     }
 
     // Check file sizes before uploading
-    // Vercel proxy limit: 4.5MB total request (base64 increases size by ~33%)
-    // Limit to 3.4MB per file to stay safely under 4.5MB when base64 encoded
-    const maxFileSize = 3.4 * 1024 * 1024; // 3.4MB per file (becomes ~4.5MB when base64 encoded)
-    const maxTotalSize = 4.5 * 1024 * 1024; // 4.5MB total (Vercel proxy limit)
+    // Apps Script limit: ~75MB per file (decoded), ~100MB when base64 encoded
+    // We use 75MB as the limit to stay safe
+    const maxFileSize = 75 * 1024 * 1024; // 75MB per file
+    const maxTotalSize = 500 * 1024 * 1024; // 500MB total (Google Drive limit)
 
     // Check individual file sizes
     for (const fileWithOptions of files) {
@@ -112,7 +113,7 @@ export default function Home() {
           `File "${fileWithOptions.file.name}" is too large (${(
             fileWithOptions.file.size /
             (1024 * 1024)
-          ).toFixed(2)}MB). Maximum file size is 3.4MB per file.`
+          ).toFixed(2)}MB). Maximum file size is 75MB per file.`
         );
         return;
       }
@@ -124,7 +125,7 @@ export default function Home() {
         `Payment screenshot is too large (${(
           paymentScreenshot.size /
           (1024 * 1024)
-        ).toFixed(2)}MB). Maximum file size is 3.4MB. Please compress the screenshot.`
+        ).toFixed(2)}MB). Maximum file size is 75MB. Please compress the screenshot.`
       );
       return;
     }
@@ -138,7 +139,7 @@ export default function Home() {
       const screenshotSizeMB = (paymentScreenshot.size / (1024 * 1024)).toFixed(2);
       const totalSizeMB = (totalSize / (1024 * 1024)).toFixed(2);
       setError(
-        `Total size exceeds limit. Files: ${filesSizeMB}MB + Payment screenshot: ${screenshotSizeMB}MB = ${totalSizeMB}MB. Maximum total is 4.5MB (including payment screenshot). Please compress files or upload fewer files.`
+        `Total size exceeds limit. Files: ${filesSizeMB}MB + Payment screenshot: ${screenshotSizeMB}MB = ${totalSizeMB}MB. Maximum total is 500MB (including payment screenshot). Please compress files or upload fewer files.`
       );
       return;
     }
@@ -147,24 +148,55 @@ export default function Home() {
     setError(null);
 
     try {
-      // Generate order ID
-      const orderId = Math.floor(10000 + Math.random() * 90000).toString();
+      // Generate order ID: PX-<timestamp>-<4hex>
+      const timestamp = Date.now();
+      const hex = Math.floor(Math.random() * 0x10000).toString(16).padStart(4, '0');
+      const orderId = `PX-${timestamp}-${hex}`;
       
-      // Upload files directly to Apps Script (bypasses Vercel 4.5MB limit!)
-      // Apps Script can handle up to 100MB per file when uploaded directly
-      // CORS should work if Apps Script is deployed with "Anyone" access
+      // Step 1: Send metadata to /api/metadata (without file bytes)
+      console.log(`[Order] Step 1: Sending metadata for order ${orderId}...`);
       
-      // Import the upload function
+      const filesMeta = files.map(f => ({
+        name: f.file.name,
+        size: f.file.size,
+        mimeType: f.file.type || 'application/octet-stream',
+        options: f.options,
+      }));
+
+      const metadataResponse = await fetch('/api/metadata', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          orderId,
+          total: calculatedTotal,
+          vpa: vpaDisplay,
+          filesMeta,
+        }),
+      });
+
+      if (!metadataResponse.ok) {
+        const errorData = await metadataResponse.json().catch(() => ({}));
+        throw new Error(errorData.message || `Metadata API returned ${metadataResponse.status}`);
+      }
+
+      console.log(`✅ Metadata saved for order ${orderId}`);
+
+      // Step 2: Upload files directly to Apps Script (bypasses Vercel 4.5MB limit!)
+      // Apps Script can handle up to 75MB per file when uploaded directly
+      console.log(`[Order] Step 2: Uploading files directly to Apps Script...`);
+      
       const { uploadBatchToDriveViaAppsScript } = await import('../lib/apps-script');
 
       // Prepare files for upload (including payment screenshot)
       const allFiles: Array<{ 
         file: File; 
-        options?: any; 
+        options?: Record<string, unknown>; 
         isPaymentScreenshot?: boolean;
         orderId?: string;
       }> = [
-        ...files.map(f => ({ file: f.file, options: f.options, orderId })),
+        ...files.map(f => ({ file: f.file, options: f.options as unknown as Record<string, unknown>, orderId })),
         { file: paymentScreenshot, isPaymentScreenshot: true, orderId },
       ];
 
@@ -176,10 +208,17 @@ export default function Home() {
       };
 
       // Upload directly to Apps Script (no Vercel proxy, no 4.5MB limit!)
-      console.log(`[Upload] Starting direct upload to Apps Script (bypassing Vercel proxy)...`);
+      // Chunking is handled automatically if payload exceeds 30MB
+      console.log(`[Upload] Starting direct upload to Apps Script (bypassing Vercel)...`);
       console.log(`[Upload] Total files: ${allFiles.length}, Total size: ${(allFiles.reduce((sum, f) => sum + f.file.size, 0) / 1024 / 1024).toFixed(2)}MB`);
       
-      const uploadResult = await uploadBatchToDriveViaAppsScript(allFiles, orderData);
+      const uploadResult = await uploadBatchToDriveViaAppsScript(
+        allFiles, 
+        orderData,
+        (progress) => {
+          console.log(`[Upload] Progress: ${progress.uploaded}/${progress.total} files (chunk ${progress.chunk}/${progress.totalChunks})`);
+        }
+      );
       
       if (!uploadResult || uploadResult.length === 0) {
         throw new Error('File upload failed. No files were uploaded.');
@@ -193,16 +232,16 @@ export default function Home() {
       setOrderId(orderId);
       setOrderSubmitted(true);
       console.log('Order submitted:', { orderId, uploadedFiles: uploadResult.length });
-    } catch (error: any) {
+    } catch (error) {
       console.error('❌ Error submitting order:', error);
       console.error('Error details:', {
-        message: error?.message,
-        stack: error?.stack,
-        name: error?.name
+        message: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined,
+        name: error instanceof Error ? error.name : undefined
       });
       
-      // Show detailed error message
-      let errorMessage = error?.message || 'Failed to submit order';
+      // Show detailed error message with helpful hints
+      let errorMessage = error instanceof Error ? error.message : 'Failed to submit order';
       
       // Add helpful hints based on error type
       if (errorMessage.includes('CORS')) {
@@ -211,8 +250,10 @@ export default function Home() {
         errorMessage += '\n\nFix: Reduce file sizes or upload fewer files.';
       } else if (errorMessage.includes('Failed to fetch') || errorMessage.includes('NetworkError')) {
         errorMessage += '\n\nFix: Check your internet connection and Apps Script URL.';
-      } else if (errorMessage.includes('not configured')) {
+      } else if (errorMessage.includes('not configured') || errorMessage.includes('NEXT_PUBLIC_APPS_SCRIPT')) {
         errorMessage += '\n\nFix: Set NEXT_PUBLIC_APPS_SCRIPT_WEB_APP_URL in .env.local and restart dev server.';
+      } else if (errorMessage.includes('quota') || errorMessage.includes('QuotaExceeded')) {
+        errorMessage += '\n\nFix: Google Apps Script quota exceeded. Please try again later or reduce the number of files.';
       }
       
       setError(errorMessage);
@@ -575,16 +616,16 @@ export default function Home() {
                   </p>
                   <p className="text-xs text-gray-400 mt-1">
                     Size: {(paymentScreenshot.size / (1024 * 1024)).toFixed(2)}MB
-                    {paymentScreenshot.size > 100 * 1024 * 1024 && (
+                    {paymentScreenshot.size > 75 * 1024 * 1024 && (
                       <span className="text-red-400 ml-2">
-                        (Too large! Max 100MB)
+                        (Too large! Max 75MB)
                       </span>
                     )}
                   </p>
                 </div>
               )}
               <p className="text-xs text-gray-500 mt-2">
-                Maximum file size: 100MB
+                Maximum file size: 75MB
               </p>
             </div>
 
@@ -594,16 +635,16 @@ export default function Home() {
                 <span className="text-gray-400">Files:</span>
                 <span
                   className={`font-semibold ${
-                    files.length > 20 ? 'text-red-400' : 'text-white'
+                    files.length > 50 ? 'text-red-400' : 'text-white'
                   }`}
                 >
-                  {files.length} / 20
+                  {files.length} / 50
                 </span>
               </div>
-              {files.length > 20 && (
+              {files.length > 50 && (
                 <p className="text-red-400 text-xs">
-                  ⚠ Maximum 20 files per order. Please remove{' '}
-                  {files.length - 20} file(s).
+                  ⚠ Maximum 50 files per order. Please remove{' '}
+                  {files.length - 50} file(s).
                 </p>
               )}
               <div className="flex justify-between items-center text-sm">
@@ -683,11 +724,11 @@ export default function Home() {
                 disabled={
                   isSubmitting ||
                   !paymentScreenshot ||
-                  files.length > 20 ||
+                  files.length > 50 ||
                   totalUploadSize > maxTotalSize ||
-                  files.some((f) => f.file.size > 100 * 1024 * 1024) ||
+                  files.some((f) => f.file.size > 75 * 1024 * 1024) ||
                   (paymentScreenshot &&
-                    paymentScreenshot.size > 100 * 1024 * 1024)
+                    paymentScreenshot.size > 75 * 1024 * 1024)
                 }
                 className="bg-white text-black px-8 py-3 rounded-lg font-semibold hover:bg-gray-100 transition-all transform hover:scale-105 shadow-lg border-2 border-white hover:border-gray-300 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
               >
