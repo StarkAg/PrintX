@@ -79,8 +79,9 @@ export default function FileUploader({
   const handleFileSelect = async (selectedFiles: FileList | null) => {
     if (!selectedFiles) return;
 
-    // Apps Script limits: 75MB per file, 500MB total, 50 files max
-    const maxFileSize = 75 * 1024 * 1024; // 75MB per file
+    // Vercel proxy limit: 4.5MB per request
+    // Max file size: 2.5MB per file (becomes ~4MB when base64+JSON encoded)
+    const maxFileSize = 2.5 * 1024 * 1024; // 2.5MB per file
     const maxFiles = 50; // Max files per order
     const newFiles: FileWithOptions[] = [];
     const skippedFiles: string[] = [];
@@ -102,7 +103,7 @@ export default function FileUploader({
       }
       if (file.size > maxFileSize) {
         skippedFiles.push(
-          `${file.name} (${(file.size / (1024 * 1024)).toFixed(2)}MB - exceeds 75MB limit)`
+          `${file.name} (${(file.size / (1024 * 1024)).toFixed(2)}MB - exceeds 2.5MB limit)`
         );
         continue;
       }
@@ -139,7 +140,7 @@ export default function FileUploader({
     // Show warning for skipped files
     if (skippedFiles.length > 0) {
       alert(
-        `Some files were skipped:\n${skippedFiles.join('\n')}\n\nMaximum file size is 75MB per file.`
+        `Some files were skipped:\n${skippedFiles.join('\n')}\n\nMaximum file size is 2.5MB per file. Please compress files or split them into smaller files.`
       );
     }
   };
@@ -218,7 +219,7 @@ export default function FileUploader({
           Accepted: PDF, PNG, JPG, JPEG
         </p>
         <p className="text-gray-500 text-xs mt-2">
-          Limits: 75MB per file, 500MB total, max 50 files per order
+          Limits: 2.5MB per file, max 50 files per order (Vercel 4.5MB request limit)
         </p>
       </div>
 
@@ -261,15 +262,15 @@ export default function FileUploader({
                       </h3>
                       <p
                         className={`text-sm mt-1 ${
-                          fileWithOptions.file.size > 75 * 1024 * 1024
+                          fileWithOptions.file.size > 2.5 * 1024 * 1024
                             ? 'text-red-400'
                             : 'text-gray-medium'
                         }`}
                       >
                         {(fileWithOptions.file.size / (1024 * 1024)).toFixed(2)} MB
-                        {fileWithOptions.file.size > 75 * 1024 * 1024 && (
+                        {fileWithOptions.file.size > 2.5 * 1024 * 1024 && (
                           <span className="ml-2 text-red-400">
-                            ⚠ Exceeds 75MB limit
+                            ⚠ Exceeds 2.5MB limit
                           </span>
                         )}
                       </p>

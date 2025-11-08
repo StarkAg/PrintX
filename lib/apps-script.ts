@@ -314,56 +314,60 @@ export async function uploadBatchToDriveViaAppsScript(
       }))
     );
 
-    // Vercel proxy limit: 4.5MB per request (but we can send multiple chunks)
-    // Apps Script can handle larger requests, but Vercel proxy limits us
-    // Chunk size: 3MB per chunk (becomes ~4MB when base64 encoded in JSON) to stay under 4.5MB
-    const MAX_CHUNK_SIZE = 3 * 1024 * 1024; // 3MB per chunk (becomes ~4MB when base64 encoded in JSON)
+    // Vercel proxy limit: 4.5MB per request (hard limit)
+    // Base64 encoding increases size by ~33%, and JSON adds overhead
+    // Conservative chunk size: 2.5MB raw file data per chunk
+    // This becomes ~3.3MB base64 + JSON overhead ≈ ~4MB total, safely under 4.5MB
+    const MAX_RAW_FILE_SIZE_PER_CHUNK = 2.5 * 1024 * 1024; // 2.5MB raw file data per chunk
+    const MAX_JSON_PAYLOAD_SIZE = 4.5 * 1024 * 1024; // 4.5MB absolute limit for JSON payload
     
-    // Group files into chunks
+    // Group files into chunks based on actual file sizes (not base64)
     interface Chunk {
       files: FileData[];
-      size: number;
+      rawSize: number; // Raw file size (before base64 encoding)
     }
     
     const chunks: Chunk[] = [];
     let currentChunk: FileData[] = [];
-    let currentChunkSize = 0;
-    
-    // Estimate size of orderData in JSON
-    const orderDataSize = orderData ? JSON.stringify(orderData).length : 0;
-    const baseOverhead = 1000; // Base JSON overhead (brackets, keys, etc.)
+    let currentChunkRawSize = 0;
     
     for (const fileData of filesData) {
-      // Estimate file entry size in JSON (name, data, mimeType, size, etc.)
-      const fileEntrySize = JSON.stringify({
-        name: fileData.name,
-        data: fileData.data.substring(0, 100), // Sample
-        mimeType: fileData.mimeType,
-        size: fileData.size,
-        isPaymentScreenshot: fileData.isPaymentScreenshot,
-        options: fileData.options
-      }).length;
-      // Actual size will be larger due to full base64 data
-      const estimatedSize = fileData.data.length + fileEntrySize;
+      const fileRawSize = fileData.size; // Raw file size
       
-      // Check if adding this file would exceed chunk size
-      const wouldExceed = (currentChunkSize + estimatedSize + orderDataSize + baseOverhead) > MAX_CHUNK_SIZE;
+      // Estimate JSON payload size for this chunk if we add this file
+      // Base64 size = rawSize * 4/3, plus JSON overhead (keys, structure, etc.)
+      // Conservative estimate: base64 size + 20% for JSON overhead
+      const estimatedBase64Size = fileRawSize * 1.33; // Base64 encoding
+      const estimatedJsonOverhead = estimatedBase64Size * 0.2; // JSON structure overhead
+      const estimatedTotalSize = estimatedBase64Size + estimatedJsonOverhead;
       
-      if (wouldExceed && currentChunk.length > 0) {
+      // Check if adding this file would exceed the limit
+      // Calculate total estimated size for current chunk + this file + orderData
+      const orderDataSize = orderData ? JSON.stringify(orderData).length : 0;
+      const currentChunkEstimatedSize = currentChunkRawSize * 1.33 * 1.2; // Current chunk estimated size
+      const totalEstimatedSize = currentChunkEstimatedSize + estimatedTotalSize + orderDataSize + 500; // 500 bytes buffer
+      
+      // If this single file exceeds the limit, it's too large to upload
+      if (estimatedTotalSize > MAX_JSON_PAYLOAD_SIZE) {
+        throw new Error(`File "${fileData.name}" is too large (${(fileRawSize / (1024 * 1024)).toFixed(2)}MB). Maximum file size is approximately ${(MAX_JSON_PAYLOAD_SIZE / 1.33 / 1.2 / (1024 * 1024)).toFixed(1)}MB per file when uploaded through Vercel.`);
+      }
+      
+      // If adding this file would exceed chunk limit, start a new chunk
+      if (totalEstimatedSize > MAX_JSON_PAYLOAD_SIZE && currentChunk.length > 0) {
         // Save current chunk and start new one
-        chunks.push({ files: [...currentChunk], size: currentChunkSize });
+        chunks.push({ files: [...currentChunk], rawSize: currentChunkRawSize });
         currentChunk = [fileData];
-        currentChunkSize = estimatedSize;
+        currentChunkRawSize = fileRawSize;
       } else {
         // Add to current chunk
         currentChunk.push(fileData);
-        currentChunkSize += estimatedSize;
+        currentChunkRawSize += fileRawSize;
       }
     }
     
     // Add remaining chunk
     if (currentChunk.length > 0) {
-      chunks.push({ files: currentChunk, size: currentChunkSize });
+      chunks.push({ files: currentChunk, rawSize: currentChunkRawSize });
     }
     
     console.log(`[Upload] Split ${files.length} file(s) into ${chunks.length} chunk(s) for upload`);
@@ -400,11 +404,19 @@ export async function uploadBatchToDriveViaAppsScript(
 
       // Check payload size before sending
       const payloadString = JSON.stringify(requestData);
-      const payloadSizeMB = payloadString.length / (1024 * 1024);
-      console.log(`[Upload] Chunk ${chunkIndex + 1} payload size: ${payloadSizeMB.toFixed(2)}MB`);
+      const payloadSizeBytes = payloadString.length;
+      const payloadSizeMB = payloadSizeBytes / (1024 * 1024);
+      console.log(`[Upload] Chunk ${chunkIndex + 1} payload size: ${payloadSizeMB.toFixed(2)}MB (${chunk.files.length} file(s))`);
       
-      if (payloadString.length > MAX_CHUNK_SIZE * 1.5) {
-        console.warn(`[Upload] Warning: Chunk ${chunkIndex + 1} payload is large (${payloadSizeMB.toFixed(2)}MB). Vercel proxy limit is 4.5MB.`);
+      // Vercel hard limit: 4.5MB
+      if (payloadSizeBytes > MAX_JSON_PAYLOAD_SIZE) {
+        const errorMsg = `Chunk ${chunkIndex + 1} payload size (${payloadSizeMB.toFixed(2)}MB) exceeds Vercel's 4.5MB limit. This should not happen - please report this issue.`;
+        console.error(`[Upload] ${errorMsg}`);
+        throw new Error(errorMsg);
+      }
+      
+      if (payloadSizeMB > 4.0) {
+        console.warn(`[Upload] Warning: Chunk ${chunkIndex + 1} payload is large (${payloadSizeMB.toFixed(2)}MB). Close to Vercel's 4.5MB limit.`);
       }
 
       // Send to Vercel proxy (handles CORS, forwards to Apps Script server-to-server)

@@ -35,8 +35,9 @@ export default function Home() {
     return filesSize + screenshotSize;
   }, [files, paymentScreenshot]);
 
-  // Apps Script limits: 75MB per file, 500MB total
-  const maxTotalSize = 500 * 1024 * 1024; // 500MB total (Google Drive limit)
+  // Vercel proxy limit: 4.5MB per request
+  // Max file size: 2.5MB per file (becomes ~4MB when base64+JSON encoded)
+  const maxTotalSize = 500 * 1024 * 1024; // 500MB total (theoretical, but limited by 2.5MB per file)
 
   const upiPayload = useMemo(() => {
     const amount = calculatedTotal > 0 ? calculatedTotal.toFixed(2) : undefined;
@@ -101,20 +102,22 @@ export default function Home() {
     }
 
     // Check file sizes before uploading
-    // Apps Script limit: ~75MB per file (decoded), ~100MB when base64 encoded
-    // We use 75MB as the limit to stay safe
-    const maxFileSize = 75 * 1024 * 1024; // 75MB per file
-    const maxTotalSize = 500 * 1024 * 1024; // 500MB total (Google Drive limit)
+    // Vercel proxy limit: 4.5MB per request
+    // With base64 encoding (1.33x) and JSON overhead (1.2x), max file size ≈ 2.8MB per file
+    // We use 2.5MB as the limit to stay safely under 4.5MB when chunked
+    // Larger files will be rejected with a clear error message
+    const maxFileSize = 2.5 * 1024 * 1024; // 2.5MB per file (becomes ~4MB when base64+JSON encoded)
+    const maxTotalSize = 500 * 1024 * 1024; // 500MB total (theoretical, but limited by chunking)
 
     // Check individual file sizes
     for (const fileWithOptions of files) {
       if (fileWithOptions.file.size > maxFileSize) {
-        setError(
-          `File "${fileWithOptions.file.name}" is too large (${(
-            fileWithOptions.file.size /
-            (1024 * 1024)
-          ).toFixed(2)}MB). Maximum file size is 75MB per file.`
-        );
+      setError(
+        `File "${fileWithOptions.file.name}" is too large (${(
+          fileWithOptions.file.size /
+          (1024 * 1024)
+        ).toFixed(2)}MB). Maximum file size is 2.5MB per file when uploading through Vercel. Please compress your files or split them into smaller files.`
+      );
         return;
       }
     }
@@ -125,7 +128,7 @@ export default function Home() {
         `Payment screenshot is too large (${(
           paymentScreenshot.size /
           (1024 * 1024)
-        ).toFixed(2)}MB). Maximum file size is 75MB. Please compress the screenshot.`
+        ).toFixed(2)}MB). Maximum file size is 2.5MB. Please compress the screenshot.`
       );
       return;
     }
@@ -139,7 +142,7 @@ export default function Home() {
       const screenshotSizeMB = (paymentScreenshot.size / (1024 * 1024)).toFixed(2);
       const totalSizeMB = (totalSize / (1024 * 1024)).toFixed(2);
       setError(
-        `Total size exceeds limit. Files: ${filesSizeMB}MB + Payment screenshot: ${screenshotSizeMB}MB = ${totalSizeMB}MB. Maximum total is 500MB (including payment screenshot). Please compress files or upload fewer files.`
+        `Total size exceeds limit. Files: ${filesSizeMB}MB + Payment screenshot: ${screenshotSizeMB}MB = ${totalSizeMB}MB. Individual files are limited to 2.5MB each due to Vercel's 4.5MB request limit. Please compress files or split them into smaller files.`
       );
       return;
     }
@@ -616,16 +619,16 @@ export default function Home() {
                   </p>
                   <p className="text-xs text-gray-400 mt-1">
                     Size: {(paymentScreenshot.size / (1024 * 1024)).toFixed(2)}MB
-                    {paymentScreenshot.size > 75 * 1024 * 1024 && (
+                    {paymentScreenshot.size > 2.5 * 1024 * 1024 && (
                       <span className="text-red-400 ml-2">
-                        (Too large! Max 75MB)
+                        (Too large! Max 2.5MB)
                       </span>
                     )}
                   </p>
                 </div>
               )}
               <p className="text-xs text-gray-500 mt-2">
-                Maximum file size: 75MB
+                Maximum file size: 2.5MB per file
               </p>
             </div>
 
@@ -726,9 +729,9 @@ export default function Home() {
                   !paymentScreenshot ||
                   files.length > 50 ||
                   totalUploadSize > maxTotalSize ||
-                  files.some((f) => f.file.size > 75 * 1024 * 1024) ||
+                  files.some((f) => f.file.size > 2.5 * 1024 * 1024) ||
                   (paymentScreenshot &&
-                    paymentScreenshot.size > 75 * 1024 * 1024)
+                    paymentScreenshot.size > 2.5 * 1024 * 1024)
                 }
                 className="bg-white text-black px-8 py-3 rounded-lg font-semibold hover:bg-gray-100 transition-all transform hover:scale-105 shadow-lg border-2 border-white hover:border-gray-300 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
               >
