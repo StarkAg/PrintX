@@ -15,7 +15,7 @@ interface Paper {
 
 export default function PapersBackground() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const animationFrameRef = useRef<number>();
+  const animationFrameRef = useRef<number | undefined>(undefined);
   const papersRef = useRef<Paper[]>([]);
 
   useEffect(() => {
