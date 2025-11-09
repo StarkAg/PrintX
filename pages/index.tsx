@@ -311,12 +311,46 @@ export default function Home() {
     );
   }
 
+  // Get the full URL for Open Graph tags
+  const siteUrl = typeof window !== 'undefined' 
+    ? window.location.origin 
+    : process.env.NEXT_PUBLIC_SITE_URL || 'https://printx-simple.vercel.app';
+
   return (
     <div className="min-h-screen bg-black text-white relative">
       <Head>
-        <title>PrintX</title>
-        <meta name="description" content="Order prints easily with PrintX" />
+        {/* Primary Meta Tags */}
+        <title>PrintX — Professional Printing Services Made Simple</title>
+        <meta name="title" content="PrintX — Professional Printing Services Made Simple" />
+        <meta name="description" content="Professional printing services made simple. Upload your files, choose your options, and get high-quality prints delivered. Support for PDF, PNG, JPG, and JPEG files with flexible print options." />
+        <meta name="keywords" content="printing, print services, document printing, photo printing, PDF printing, professional printing, print online" />
+        
+        {/* Open Graph / Facebook */}
+        <meta property="og:type" content="website" />
+        <meta property="og:url" content={siteUrl} />
+        <meta property="og:title" content="PrintX — Professional Printing Services Made Simple" />
+        <meta property="og:description" content="Professional printing services made simple. Upload your files, choose your options, and get high-quality prints delivered." />
+        <meta property="og:site_name" content="PrintX" />
+        <meta property="og:image" content={`${siteUrl}/api/og-image`} />
+        <meta property="og:image:width" content="1200" />
+        <meta property="og:image:height" content="630" />
+        <meta property="og:image:alt" content="PrintX - Professional Printing Services" />
+        
+        {/* Twitter */}
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:url" content={siteUrl} />
+        <meta name="twitter:title" content="PrintX — Professional Printing Services Made Simple" />
+        <meta name="twitter:description" content="Professional printing services made simple. Upload your files, choose your options, and get high-quality prints delivered." />
+        <meta name="twitter:image" content={`${siteUrl}/api/og-image`} />
+        <meta name="twitter:image:alt" content="PrintX - Professional Printing Services" />
+        
+        {/* Additional Meta Tags */}
+        <meta name="theme-color" content="#000000" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        
+        {/* Favicon */}
         <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+        <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
       </Head>
 
       {/* Papers Background Animation */}
