@@ -37,10 +37,10 @@ export default function QRCodeDisplay({
   if (!qrDataUrl) {
     return (
       <div
-        className="bg-white flex items-center justify-center rounded-lg border border-gray-200"
+        className="bg-white flex items-center justify-center rounded-lg border border-gray-700"
         style={{ width: size, height: size }}
       >
-        <span className="text-gray-600 text-sm">Loading QR...</span>
+        <span className="text-black text-sm">Loading QR...</span>
       </div>
     );
   }
@@ -48,7 +48,7 @@ export default function QRCodeDisplay({
   return (
     <div className="flex flex-col items-center space-y-4">
       <div
-        className="bg-white p-4 rounded-lg border-2 border-gray-300 shadow-lg"
+        className="bg-white p-4 rounded-lg border-2 border-white shadow-lg"
         style={{ width: size + 32, height: size + 32 }}
       >
         <img
@@ -57,7 +57,7 @@ export default function QRCodeDisplay({
           className="w-full h-full"
         />
       </div>
-      <p className="text-[#282828] font-mono text-lg">{displayValue}</p>
+      <p className="text-white font-mono text-lg">{displayValue}</p>
     </div>
   );
 }

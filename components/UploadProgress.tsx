@@ -97,22 +97,22 @@ export default function UploadProgress({
   }
 
   return (
-    <div className="fixed inset-0 bg-white/90 backdrop-blur-sm z-50 flex items-center justify-center">
-      <div className="bg-white border border-gray-300 rounded-lg p-8 max-w-md w-full mx-4 shadow-2xl">
+    <div className="fixed inset-0 bg-black/90 backdrop-blur-sm z-50 flex items-center justify-center">
+      <div className="bg-[#0a0a0a] border border-gray-800 rounded-lg p-8 max-w-md w-full mx-4 shadow-2xl">
         <div className="text-center mb-6">
           <div className="inline-block mb-4">
             <div className="relative w-16 h-16">
-              <div className="absolute inset-0 border-4 border-gray-200 rounded-full"></div>
+              <div className="absolute inset-0 border-4 border-gray-800 rounded-full"></div>
               <div 
-                className="absolute inset-0 border-4 border-[#282828] rounded-full border-t-transparent animate-spin"
+                className="absolute inset-0 border-4 border-white rounded-full border-t-transparent animate-spin"
                 style={{ animationDuration: '1s' }}
               ></div>
             </div>
           </div>
-          <h3 className="text-2xl font-bold text-[#282828] mb-2">
+          <h3 className="text-2xl font-bold text-white mb-2">
             {isComplete ? 'Upload Complete!' : 'Uploading Files'}
           </h3>
-          <p className="text-gray-600 text-sm">
+          <p className="text-white/90 text-sm">
             {isComplete
               ? 'Processing your order...'
               : currentProgress
@@ -123,16 +123,16 @@ export default function UploadProgress({
 
         {/* Progress Bar */}
         <div className="mb-4">
-          <div className="flex justify-between text-xs text-gray-600 mb-2">
+          <div className="flex justify-between text-xs text-white/80 mb-2">
             <span>Progress</span>
             <span>{Math.round(displayProgress)}%</span>
           </div>
-          <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
+          <div className="w-full bg-black rounded-full h-3 overflow-hidden">
             {/* Background gradient */}
-            <div className="h-full bg-gray-100 relative">
+            <div className="h-full bg-black relative">
               {/* Progress fill with animated gradient */}
               <div
-                className="h-full bg-gradient-to-r from-[#282828] via-gray-700 to-[#282828] transition-all duration-300 ease-out relative overflow-hidden"
+                className="h-full bg-gradient-to-r from-white via-gray-200 to-white transition-all duration-300 ease-out relative overflow-hidden"
                 style={{
                   width: `${Math.min(displayProgress, 100)}%`,
                 }}
@@ -146,7 +146,7 @@ export default function UploadProgress({
 
         {/* File count indicator */}
         {currentProgress && (
-          <div className="flex items-center justify-center space-x-2 text-sm text-gray-600">
+          <div className="flex items-center justify-center space-x-2 text-sm text-white/80">
             <svg
               className="w-4 h-4"
               fill="none"

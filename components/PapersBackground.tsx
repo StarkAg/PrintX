@@ -4,18 +4,18 @@ interface Paper {
   id: number;
   x: number;
   y: number;
+  width: number;
+  height: number;
   rotation: number;
-  size: number;
-  speedX: number;
-  speedY: number;
-  speedRotation: number;
+  vx: number;
+  vy: number;
+  vr: number;
   opacity: number;
-  delay: number;
 }
 
 export default function PapersBackground() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const animationFrameRef = useRef<number | undefined>(undefined);
+  const animationFrameRef = useRef<number>();
   const papersRef = useRef<Paper[]>([]);
 
   useEffect(() => {
@@ -33,102 +33,62 @@ export default function PapersBackground() {
     resizeCanvas();
     window.addEventListener('resize', resizeCanvas);
 
-    // Create papers
-    const createPapers = (): Paper[] => {
-      const papers: Paper[] = [];
-      const paperCount = 12; // Number of floating papers (reduced for better performance)
+    // Initialize papers
+    const numPapers = 15;
+    papersRef.current = Array.from({ length: numPapers }, (_, i) => ({
+      id: i,
+      x: Math.random() * canvas.width,
+      y: Math.random() * canvas.height,
+      width: 60 + Math.random() * 80,
+      height: 80 + Math.random() * 100,
+      rotation: Math.random() * Math.PI * 2,
+      vx: (Math.random() - 0.5) * 0.5,
+      vy: (Math.random() - 0.5) * 0.5,
+      vr: (Math.random() - 0.5) * 0.02,
+      opacity: 0.1 + Math.random() * 0.15,
+    }));
 
-      for (let i = 0; i < paperCount; i++) {
-        papers.push({
-          id: i,
-          x: Math.random() * canvas.width,
-          y: Math.random() * canvas.height,
-          rotation: Math.random() * Math.PI * 2,
-          size: 50 + Math.random() * 70, // 50-120px
-          speedX: (Math.random() - 0.5) * 0.25,
-          speedY: (Math.random() - 0.5) * 0.25 - 0.15, // Slight upward bias
-          speedRotation: (Math.random() - 0.5) * 0.015,
-          opacity: 0.12 + Math.random() * 0.18, // 0.12-0.3 opacity (more subtle)
-          delay: Math.random() * 80, // Stagger animation start
-        });
-      }
-      return papers;
-    };
-
-    papersRef.current = createPapers();
-
-    let time = 0;
+    let frameTime = 0;
 
     const drawPaper = (paper: Paper, frameTime: number) => {
-      if (frameTime < paper.delay) return; // Delay start
-
       ctx.save();
-      ctx.translate(paper.x, paper.y);
-      ctx.rotate(paper.rotation);
+      ctx.translate(paper.x + paper.width / 2, paper.y + paper.height / 2);
+      ctx.rotate(paper.rotation + frameTime * 0.0001);
 
-      // Draw paper with subtle shadow
-      ctx.globalAlpha = paper.opacity;
-      
-      // Paper shadow
-      ctx.shadowColor = 'rgba(255, 255, 255, 0.1)';
-      ctx.shadowBlur = 10;
-      ctx.shadowOffsetX = 2;
-      ctx.shadowOffsetY = 2;
-
-      // Paper body - use white with red/orange accents matching the color scheme
+      // Paper body - use subtle white/gray tones for dark background
       const paperColors = [
-        'rgba(255, 255, 255, 0.9)',
-        'rgba(255, 255, 255, 0.85)',
-        'rgba(255, 255, 255, 0.8)', // Orange accent
-        'rgba(255, 255, 255, 0.75)', // Red accent
-        'rgba(255, 255, 255, 0.8)',
+        'rgba(255, 255, 255, 0.08)',
+        'rgba(255, 255, 255, 0.06)',
+        'rgba(255, 255, 255, 0.1)',
+        'rgba(255, 255, 255, 0.05)',
+        'rgba(255, 255, 255, 0.07)',
       ];
       const paperColor = paperColors[paper.id % paperColors.length];
 
       ctx.fillStyle = paperColor;
-      ctx.strokeStyle = paper.id % 3 === 0 
-        ? 'rgba(255, 255, 255, 0.5)' // Red border for some papers
+      ctx.strokeStyle = paper.id % 3 === 0
+        ? 'rgba(255, 255, 255, 0.15)'
         : paper.id % 5 === 0
-        ? 'rgba(255, 255, 255, 0.4)' // Orange border for some papers
-        : 'rgba(255, 255, 255, 0.5)'; // White border for others
+        ? 'rgba(255, 255, 255, 0.12)'
+        : 'rgba(255, 255, 255, 0.1)';
       ctx.lineWidth = 1;
 
-      // Draw paper shape (slightly rotated rectangle)
-      const width = paper.size;
-      const height = paper.size * 1.4;
-
+      // Draw paper shape
       ctx.beginPath();
-      // Slightly irregular edges for realism
-      ctx.moveTo(-width / 2 + Math.sin(time * 0.5 + paper.id) * 2, -height / 2);
-      ctx.lineTo(width / 2 + Math.cos(time * 0.3 + paper.id) * 2, -height / 2 + Math.sin(time * 0.4 + paper.id) * 2);
-      ctx.lineTo(width / 2 + Math.sin(time * 0.6 + paper.id) * 2, height / 2);
-      ctx.lineTo(-width / 2 + Math.cos(time * 0.5 + paper.id) * 2, height / 2 + Math.cos(time * 0.3 + paper.id) * 2);
-      ctx.closePath();
+      ctx.rect(-paper.width / 2, -paper.height / 2, paper.width, paper.height);
       ctx.fill();
       ctx.stroke();
 
-      // Add subtle texture lines (like ruled paper)
-      if (paper.id % 3 === 0) {
-        ctx.strokeStyle = 'rgba(220, 220, 220, 0.2)';
-        ctx.lineWidth = 0.5;
-        for (let i = -height / 2 + 10; i < height / 2; i += 12) {
-          ctx.beginPath();
-          ctx.moveTo(-width / 2 + 5, i);
-          ctx.lineTo(width / 2 - 5, i + Math.sin(time * 0.2) * 1);
-          ctx.stroke();
-        }
-      }
-
-      // Add corner fold effect on some papers with color scheme colors
+      // Add subtle corner fold effect
       if (paper.id % 4 === 0) {
-        ctx.globalAlpha = paper.opacity * 0.6;
-        ctx.fillStyle = paper.id % 2 === 0 
-          ? 'rgba(255, 255, 255, 0.5)' // Red fold
-          : 'rgba(255, 255, 255, 0.4)'; // Orange fold
+        ctx.globalAlpha = paper.opacity * 0.4;
+        ctx.fillStyle = paper.id % 2 === 0
+          ? 'rgba(255, 255, 255, 0.1)'
+          : 'rgba(255, 255, 255, 0.08)';
         ctx.beginPath();
-        ctx.moveTo(width / 2 - 8, -height / 2);
-        ctx.lineTo(width / 2, -height / 2);
-        ctx.lineTo(width / 2, -height / 2 + 8);
+        ctx.moveTo(-paper.width / 2, -paper.height / 2);
+        ctx.lineTo(-paper.width / 2 + 15, -paper.height / 2);
+        ctx.lineTo(-paper.width / 2, -paper.height / 2 + 15);
         ctx.closePath();
         ctx.fill();
       }
@@ -136,37 +96,30 @@ export default function PapersBackground() {
       ctx.restore();
     };
 
-    const animate = () => {
-      time += 0.016; // ~60fps
+    const animate = (currentTime: number) => {
+      frameTime = currentTime;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-      // Clear canvas with subtle fade effect for trailing
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.03)';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-      // Update and draw papers
       papersRef.current.forEach((paper) => {
         // Update position
-        paper.x += paper.speedX;
-        paper.y += paper.speedY;
-        paper.rotation += paper.speedRotation;
+        paper.x += paper.vx;
+        paper.y += paper.vy;
+        paper.rotation += paper.vr;
 
         // Wrap around edges
-        if (paper.x < -100) paper.x = canvas.width + 100;
-        if (paper.x > canvas.width + 100) paper.x = -100;
-        if (paper.y < -100) paper.y = canvas.height + 100;
-        if (paper.y > canvas.height + 100) paper.y = -100;
-
-        // Subtle floating motion (sin wave) - removed to reduce complexity
-        // The natural drift from speedX/speedY is enough
+        if (paper.x < -paper.width) paper.x = canvas.width;
+        if (paper.x > canvas.width) paper.x = -paper.width;
+        if (paper.y < -paper.height) paper.y = canvas.height;
+        if (paper.y > canvas.height) paper.y = -paper.height;
 
         // Draw paper
-        drawPaper(paper, time * 60); // Convert to frame time
+        drawPaper(paper, frameTime);
       });
 
       animationFrameRef.current = requestAnimationFrame(animate);
     };
 
-    animate();
+    animationFrameRef.current = requestAnimationFrame(animate);
 
     return () => {
       window.removeEventListener('resize', resizeCanvas);
@@ -179,9 +132,8 @@ export default function PapersBackground() {
   return (
     <canvas
       ref={canvasRef}
-      className="fixed inset-0 pointer-events-none z-0"
+      className="fixed inset-0 w-full h-full pointer-events-none z-0"
       style={{ background: 'transparent' }}
-      aria-hidden="true"
     />
   );
 }
