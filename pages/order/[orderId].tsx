@@ -19,13 +19,13 @@ const FileThumbnail = ({ file }: { file: OrderFile }) => {
     const ext = file.name.split('.').pop()?.toLowerCase();
     if (ext === 'pdf') {
       return (
-        <span className="inline-flex items-center justify-center w-12 h-12 sm:w-16 sm:h-16 rounded-md bg-red-600/80 border border-red-400 text-xs font-bold text-white">
+        <span className="inline-flex items-center justify-center w-12 h-12 sm:w-16 sm:h-16 rounded-md bg-black border border-white text-xs font-bold text-white">
           PDF
         </span>
       );
     }
     return (
-      <span className="inline-flex items-center justify-center w-12 h-12 sm:w-16 sm:h-16 rounded-md bg-gray-700 border border-gray-500 text-xs font-semibold text-white">
+      <span className="inline-flex items-center justify-center w-12 h-12 sm:w-16 sm:h-16 rounded-md bg-black border border-gray-600 text-xs font-semibold text-white">
         IMG
       </span>
     );
@@ -40,7 +40,7 @@ const FileThumbnail = ({ file }: { file: OrderFile }) => {
       <img
         src={proxyThumbnailUrl}
         alt={file.name}
-        className="w-12 h-12 sm:w-16 sm:h-16 object-cover rounded-md border border-gray"
+        className="w-12 h-12 sm:w-16 sm:h-16 object-cover rounded-md border border-gray-600"
         onError={() => {
           console.warn(`Failed to load thumbnail for ${file.name}, falling back to icon`);
           setImageError(true);
@@ -55,7 +55,7 @@ const FileThumbnail = ({ file }: { file: OrderFile }) => {
       <img
         src={file.thumbnailUrl}
         alt={file.name}
-        className="w-12 h-12 sm:w-16 sm:h-16 object-cover rounded-md border border-gray"
+        className="w-12 h-12 sm:w-16 sm:h-16 object-cover rounded-md border border-gray-600"
         onError={() => {
           console.warn(`Failed to load direct thumbnail for ${file.name}, falling back to icon`);
           setImageError(true);
@@ -70,7 +70,7 @@ const FileThumbnail = ({ file }: { file: OrderFile }) => {
       <img
         src={`/${file.thumbnailPath}`}
         alt={file.name}
-        className="w-12 h-12 sm:w-16 sm:h-16 object-cover rounded-md border border-gray"
+        className="w-12 h-12 sm:w-16 sm:h-16 object-cover rounded-md border border-gray-600"
         onError={() => setImageError(true)}
       />
     );
@@ -79,15 +79,15 @@ const FileThumbnail = ({ file }: { file: OrderFile }) => {
   // Fallback: Show icon based on file type
   const ext = file.name.split('.').pop()?.toLowerCase();
   if (ext === 'pdf') {
-    return (
-      <span className="inline-flex items-center justify-center w-12 h-12 sm:w-16 sm:h-16 rounded-md bg-red-600/80 border border-red-400 text-xs font-bold text-white">
-        PDF
-      </span>
-    );
-  }
+      return (
+        <span className="inline-flex items-center justify-center w-12 h-12 sm:w-16 sm:h-16 rounded-md bg-black border border-white text-xs font-bold text-white">
+          PDF
+        </span>
+      );
+    }
 
   return (
-    <span className="inline-flex items-center justify-center w-12 h-12 sm:w-16 sm:h-16 rounded-md bg-gray-700 border border-gray-500 text-xs font-semibold text-white">
+    <span className="inline-flex items-center justify-center w-12 h-12 sm:w-16 sm:h-16 rounded-md bg-black border border-gray-600 text-xs font-semibold text-white">
       IMG
     </span>
   );
@@ -133,9 +133,9 @@ export default function OrderStatus({ orderId, order }: OrderStatusProps) {
 
       <main className="container mx-auto px-4 sm:px-6 py-6 sm:py-12 max-w-4xl space-y-6 sm:space-y-8">
         {/* Success Header */}
-        <div className="bg-card border border-gray rounded-lg p-6 sm:p-10 text-center space-y-4 sm:space-y-6">
+        <div className="bg-gray-800 border border-gray-600 rounded-lg p-6 sm:p-10 text-center space-y-4 sm:space-y-6">
           <div className="flex flex-col items-center space-y-3">
-            <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full border-4 border-green-500 flex items-center justify-center bg-green-500/10">
+            <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full border-4 border-white flex items-center justify-center bg-black/20">
               <svg
                 xmlns="http://www.w3.org/2000/svg"
                 viewBox="0 0 24 24"
@@ -144,16 +144,16 @@ export default function OrderStatus({ orderId, order }: OrderStatusProps) {
                 strokeWidth="3"
                 strokeLinecap="round"
                 strokeLinejoin="round"
-                className="text-green-500 w-8 h-8 sm:w-10 sm:h-10"
+                className="text-white w-8 h-8 sm:w-10 sm:h-10"
               >
                 <path d="m5 12 5 5L20 7" />
               </svg>
             </div>
             <div>
-              <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-2">
+              <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-2 text-white">
                 Order In Processing
               </h1>
-              <p className="text-gray-300 text-sm sm:text-base px-2">
+              <p className="text-white/90 text-sm sm:text-base px-2">
                 Thank you! Your order has been received and is currently being
                 processed.
               </p>
@@ -161,8 +161,8 @@ export default function OrderStatus({ orderId, order }: OrderStatusProps) {
           </div>
 
           {/* Order ID Card */}
-          <div className="bg-card-hover border border-gray rounded-lg p-4 sm:p-6 w-full sm:w-auto">
-            <p className="text-xs sm:text-sm text-gray-400 mb-1">Order ID</p>
+          <div className="bg-black border border-gray-600 rounded-lg p-4 sm:p-6 w-full sm:w-auto">
+            <p className="text-xs sm:text-sm text-white/70 mb-1">Order ID</p>
             <p className="text-xl sm:text-2xl md:text-3xl font-mono font-bold text-white break-all">
               {orderId}
             </p>
@@ -172,7 +172,7 @@ export default function OrderStatus({ orderId, order }: OrderStatusProps) {
           <div className="pt-4 sm:pt-6">
             <Link
               href="/"
-              className="inline-block bg-white text-black px-6 py-3 rounded-lg font-semibold hover:bg-gray-100 transition-all transform hover:scale-105 shadow-lg border-2 border-white hover:border-gray-300 text-sm sm:text-base w-full sm:w-auto"
+              className="inline-block bg-white text-black px-6 py-3 rounded-lg font-semibold hover:bg-gray-200 transition-all transform hover:scale-105 shadow-lg border-2 border-white hover:border-gray-200 text-sm sm:text-base w-full sm:w-auto"
             >
               Go Back to Home
             </Link>
@@ -181,7 +181,7 @@ export default function OrderStatus({ orderId, order }: OrderStatusProps) {
 
         {/* Order Details */}
         {order ? (
-          <div className="bg-card border border-gray rounded-lg p-4 sm:p-6 md:p-8 space-y-6">
+          <div className="bg-gray-800 border border-gray-600 rounded-lg p-4 sm:p-6 md:p-8 space-y-6">
             <h2 className="text-xl sm:text-2xl font-semibold text-white">
               Order Details
             </h2>
@@ -190,19 +190,19 @@ export default function OrderStatus({ orderId, order }: OrderStatusProps) {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
               <div className="space-y-3">
                 <div>
-                  <p className="text-xs sm:text-sm text-gray-400 mb-1">Status</p>
+                  <p className="text-xs sm:text-sm text-white/80 mb-1">Status</p>
                   <span
                     className={`inline-block px-3 py-1 rounded-full text-sm font-semibold ${
                       order.status === 'Fulfilled'
-                        ? 'bg-green-900 text-green-300'
-                        : 'bg-yellow-900 text-yellow-300'
+                        ? 'bg-black text-white border border-gray-600'
+                        : 'bg-black text-white border border-white/50'
                     }`}
                   >
                     {order.status}
                   </span>
                 </div>
                 <div>
-                  <p className="text-xs sm:text-sm text-gray-400 mb-1">
+                  <p className="text-xs sm:text-sm text-white/80 mb-1">
                     Placed On
                   </p>
                   <p className="text-white text-sm sm:text-base">
@@ -212,13 +212,13 @@ export default function OrderStatus({ orderId, order }: OrderStatusProps) {
               </div>
               <div className="space-y-3">
                 <div>
-                  <p className="text-xs sm:text-sm text-gray-400 mb-1">Total</p>
+                  <p className="text-xs sm:text-sm text-white/80 mb-1">Total</p>
                   <p className="text-white text-xl sm:text-2xl font-bold">
                     ₹{order.total.toFixed(2)}
                   </p>
                 </div>
                 <div>
-                  <p className="text-xs sm:text-sm text-gray-400 mb-1">VPA</p>
+                  <p className="text-xs sm:text-sm text-white/80 mb-1">VPA</p>
                   <p className="text-white text-sm sm:text-base font-mono break-all">
                     {order.vpa}
                   </p>
@@ -235,7 +235,7 @@ export default function OrderStatus({ orderId, order }: OrderStatusProps) {
                 {order.files.map((file, index) => (
                   <div
                     key={`${file.name}-${file.driveId}`}
-                    className="border border-gray rounded-lg p-3 sm:p-4 bg-card-hover"
+                    className="border border-gray-600 rounded-lg p-3 sm:p-4 bg-black"
                   >
                     <div className="flex items-start gap-3 sm:gap-4">
                       <div className="flex-shrink-0">
@@ -245,18 +245,18 @@ export default function OrderStatus({ orderId, order }: OrderStatusProps) {
                         <p className="text-white font-semibold text-sm sm:text-base truncate mb-2">
                           {file.name}
                         </p>
-                        <div className="flex flex-wrap gap-2 text-xs sm:text-sm text-gray-300">
-                          <span className="bg-gray-800 px-2 py-1 rounded">
+                        <div className="flex flex-wrap gap-2 text-xs sm:text-sm text-white/90">
+                          <span className="bg-gray-800/30 px-2 py-1 rounded border border-gray-600">
                             {file.options.format}
                           </span>
-                          <span className="bg-gray-800 px-2 py-1 rounded">
+                          <span className="bg-gray-800/30 px-2 py-1 rounded border border-gray-600">
                             {file.options.color}
                           </span>
-                          <span className="bg-gray-800 px-2 py-1 rounded">
+                          <span className="bg-gray-800/30 px-2 py-1 rounded border border-gray-600">
                             {file.options.paperGSM}
                           </span>
                           {file.options.binding && file.options.binding !== 'None' && (
-                            <span className="bg-gray-800 px-2 py-1 rounded">
+                            <span className="bg-gray-800/30 px-2 py-1 rounded border border-gray-600">
                               {file.options.binding}
                             </span>
                           )}
@@ -274,7 +274,7 @@ export default function OrderStatus({ orderId, order }: OrderStatusProps) {
                 <h3 className="text-lg sm:text-xl font-semibold text-white">
                   Payment Screenshot
                 </h3>
-                <div className="border border-gray rounded-lg p-2 bg-card-hover">
+                <div className="border border-gray-600 rounded-lg p-2 bg-black">
                   {/* Payment screenshot can be a Google Drive URL or local path */}
                   {order.paymentScreenshotPath.startsWith('http') ? (
                     <img
@@ -301,8 +301,8 @@ export default function OrderStatus({ orderId, order }: OrderStatusProps) {
             )}
           </div>
         ) : (
-          <div className="bg-card border border-gray rounded-lg p-6 sm:p-8 text-center">
-            <p className="text-gray-300 text-sm sm:text-base">
+          <div className="bg-gray-800 border border-gray-600 rounded-lg p-6 sm:p-8 text-center">
+            <p className="text-white/90 text-sm sm:text-base">
               We could not find details for this order yet. Please refresh in a
               moment or contact support if the issue persists.
             </p>

@@ -48,7 +48,7 @@ export default function QRCodeDisplay({
   return (
     <div className="flex flex-col items-center space-y-4">
       <div
-        className="bg-white p-4 rounded-lg border-2 border-gray"
+        className="bg-white p-4 rounded-lg border-2 border-white/30 shadow-lg"
         style={{ width: size + 32, height: size + 32 }}
       >
         <img

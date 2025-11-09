@@ -124,6 +124,18 @@ export default async function handler(
 
   if (req.method === 'GET') {
     try {
+      const isVercel = !!process.env.VERCEL;
+      
+      // On Vercel, filesystem is read-only, so return empty array
+      // In production, orders should be fetched from Google Sheets via Apps Script
+      if (isVercel) {
+        // TODO: Fetch from Google Sheets via Apps Script
+        // For now, return empty array with a note
+        console.log('[GET /api/order] Vercel detected: Orders should be fetched from Google Sheets');
+        res.status(200).json([]);
+        return;
+      }
+      
       const orders = readOrders();
       res.status(200).json(orders);
     } catch (error: any) {

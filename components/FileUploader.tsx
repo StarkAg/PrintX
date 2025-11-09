@@ -195,8 +195,8 @@ export default function FileUploader({
         onDragLeave={handleDragLeave}
         className={`border-2 border-dashed rounded-lg p-12 text-center transition-colors ${
           dragging
-            ? 'border-accent bg-card-hover'
-            : 'border-gray bg-card hover:border-white'
+            ? 'border-white bg-gray-800/20'
+            : 'border-gray-800/50 bg-gray-800/10 hover:border-gray-800'
         }`}
       >
         <input
@@ -215,14 +215,14 @@ export default function FileUploader({
         </p>
         <button
           onClick={() => fileInputRef.current?.click()}
-          className="bg-white text-black px-6 py-3 rounded-lg font-semibold hover:bg-gray-100 transition-all transform hover:scale-105 shadow-lg border-2 border-white hover:border-gray-300"
+          className="bg-white text-black px-6 py-3 rounded-lg font-semibold hover:bg-gray-200 transition-all transform hover:scale-105 shadow-lg border-2 border-white hover:border-gray-200"
         >
           Choose Files
         </button>
-        <p className="text-gray-medium text-sm mt-4">
+        <p className="text-white/80 text-sm mt-4">
           Accepted: PDF, PNG, JPG, JPEG
         </p>
-        <p className="text-gray-500 text-xs mt-2">
+        <p className="text-white/60 text-xs mt-2">
           Limits: 2.5MB per file, max 50 files per order (Vercel 4.5MB request limit)
         </p>
       </div>
@@ -239,7 +239,7 @@ export default function FileUploader({
             return (
               <div
                 key={index}
-                className="bg-card border border-gray rounded-lg p-6 space-y-4"
+                className="bg-gray-800 border border-gray-600 rounded-lg p-6 space-y-4"
               >
                 <div className="flex items-start justify-between">
                   <div className="flex items-center space-x-4 flex-1">
@@ -248,14 +248,14 @@ export default function FileUploader({
                       <img
                         src={fileWithOptions.preview}
                         alt={fileWithOptions.file.name}
-                        className="w-20 h-20 object-cover rounded border border-gray"
+                        className="w-20 h-20 object-cover rounded border border-gray-600"
                       />
                     ) : fileWithOptions.file.type === 'application/pdf' ? (
-                      <div className="w-20 h-20 bg-red-600 flex items-center justify-center rounded border border-red-400">
+                      <div className="w-20 h-20 bg-black flex items-center justify-center rounded border border-white">
                         <span className="text-white font-bold text-sm">PDF</span>
                       </div>
                     ) : (
-                      <div className="w-20 h-20 bg-gray-700 flex items-center justify-center rounded border border-gray-500">
+                      <div className="w-20 h-20 bg-black flex items-center justify-center rounded border border-gray-600">
                         <span className="text-white font-semibold text-sm">IMG</span>
                       </div>
                     )}
@@ -267,13 +267,13 @@ export default function FileUploader({
                       <p
                         className={`text-sm mt-1 ${
                           fileWithOptions.file.size > 2.5 * 1024 * 1024
-                            ? 'text-red-400'
-                            : 'text-gray-medium'
+                            ? 'text-white'
+                            : 'text-white/80'
                         }`}
                       >
                         {(fileWithOptions.file.size / (1024 * 1024)).toFixed(2)} MB
                         {fileWithOptions.file.size > 2.5 * 1024 * 1024 && (
-                          <span className="ml-2 text-red-400">
+                          <span className="ml-2 text-white">
                             ⚠ Exceeds 2.5MB limit
                           </span>
                         )}
@@ -286,18 +286,18 @@ export default function FileUploader({
 
                   <button
                     onClick={() => removeFile(index)}
-                    className="text-red-400 hover:text-red-300 px-3 py-1"
+                    className="text-white/80 hover:text-white px-3 py-1 transition-colors"
                   >
                     Remove
                   </button>
                 </div>
 
                 {/* Options Panel */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-4 border-t border-gray">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-4 border-t border-gray-600">
                   <div>
                     <label 
                       htmlFor={`format-${index}`}
-                      className="block text-sm text-gray-medium mb-1"
+                      className="block text-sm text-white/90 mb-1"
                     >
                       Format
                     </label>
@@ -308,7 +308,7 @@ export default function FileUploader({
                       onChange={(e) =>
                         updateFileOptions(index, { format: e.target.value })
                       }
-                      className="w-full bg-card-hover border border-gray text-white rounded px-3 py-2"
+                      className="w-full bg-black border border-gray-600 text-white rounded px-3 py-2"
                       aria-label="Select paper format"
                     >
                       <option value="A4">A4</option>
@@ -318,7 +318,7 @@ export default function FileUploader({
                   <div>
                     <label 
                       htmlFor={`color-${index}`}
-                      className="block text-sm text-gray-medium mb-1"
+                      className="block text-sm text-white/90 mb-1"
                     >
                       Color
                     </label>
@@ -331,7 +331,7 @@ export default function FileUploader({
                           color: e.target.value as 'Color' | 'B&W',
                         })
                       }
-                      className="w-full bg-card-hover border border-gray text-white rounded px-3 py-2"
+                      className="w-full bg-black border border-gray-600 text-white rounded px-3 py-2"
                       aria-label="Select color option"
                     >
                       <option value="B&W">B&W</option>
@@ -342,7 +342,7 @@ export default function FileUploader({
                   <div>
                     <label 
                       htmlFor={`paper-gsm-${index}`}
-                      className="block text-sm text-gray-medium mb-1"
+                      className="block text-sm text-white/90 mb-1"
                     >
                       Paper GSM
                     </label>
@@ -355,7 +355,7 @@ export default function FileUploader({
                           paperGSM: e.target.value as '40gsm' | '55gsm',
                         })
                       }
-                      className="w-full bg-card-hover border border-gray text-white rounded px-3 py-2"
+                      className="w-full bg-black border border-gray-600 text-white rounded px-3 py-2"
                       aria-label="Select paper GSM"
                     >
                       <option value="40gsm">40gsm</option>
@@ -367,7 +367,7 @@ export default function FileUploader({
                     <div>
                       <label 
                         htmlFor={`binding-${index}`}
-                        className="block text-sm text-gray-medium mb-1"
+                        className="block text-sm text-white/90 mb-1"
                       >
                         Binding
                       </label>
@@ -383,7 +383,7 @@ export default function FileUploader({
                               | 'Blue binding',
                           })
                         }
-                        className="w-full bg-card-hover border border-gray text-white rounded px-3 py-2"
+                        className="w-full bg-black border border-gray-600 text-white rounded px-3 py-2"
                         aria-label="Select binding option"
                       >
                         <option value="None">None</option>
@@ -397,7 +397,7 @@ export default function FileUploader({
                 {/* Apply to All Button */}
                 <button
                   onClick={() => onApplyToAll(fileWithOptions.options)}
-                  className="w-full mt-4 py-2 border border-gray text-white rounded hover:bg-card-hover transition-colors text-sm"
+                  className="w-full mt-4 py-2 border border-gray-600 text-white rounded hover:bg-black/30 transition-colors text-sm"
                 >
                   Apply this print configuration to all files
                 </button>

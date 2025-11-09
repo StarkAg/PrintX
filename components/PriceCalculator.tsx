@@ -22,13 +22,13 @@ export interface PricingDetails {
 }
 
 const PDF_ICON = (
-  <div className="w-10 h-10 bg-red-600/80 flex items-center justify-center rounded-md border border-red-400/60 text-xs font-bold text-white">
+  <div className="w-10 h-10 bg-black flex items-center justify-center rounded-md border border-gray-300 text-xs font-bold text-gray-300">
     PDF
   </div>
 );
 
 const GENERIC_ICON = (
-  <div className="w-10 h-10 bg-gray-700 flex items-center justify-center rounded-md border border-gray-500 text-xs font-semibold text-white">
+  <div className="w-10 h-10 bg-black flex items-center justify-center rounded-md border border-gray-600 text-xs font-semibold text-white">
     FILE
   </div>
 );
@@ -44,7 +44,7 @@ const FilePreview: React.FC<{ fileWithOptions: FileWithOptions }> = ({
       <img
         src={preview}
         alt={file.name}
-        className="w-12 h-12 rounded-md object-cover border border-gray"
+        className="w-12 h-12 rounded-md object-cover border border-gray-600"
       />
     );
   }
@@ -112,7 +112,7 @@ export default function PriceCalculator({ files }: PriceCalculatorProps) {
   const total = calculateTotal(files);
 
   return (
-    <div className="bg-card rounded-lg p-6 border border-gray">
+    <div className="bg-gray-800 rounded-lg p-6 border border-gray-600">
       <h2 className="text-2xl font-bold mb-4 text-white">Order Summary</h2>
       
       <div className="space-y-3 mb-4">
@@ -125,15 +125,15 @@ export default function PriceCalculator({ files }: PriceCalculatorProps) {
           return (
             <div
               key={index}
-              className="flex justify-between items-center gap-6 py-2 border-b border-gray"
+              className="flex justify-between items-center gap-6 py-2 border-b border-gray-600"
             >
               <div className="flex items-center gap-3 min-w-0">
                 <FilePreview fileWithOptions={fileWithOptions} />
-                <span className="text-gray-300 truncate">
+                <span className="text-white/90 truncate">
                   {fileWithOptions.file.name}
                 </span>
               </div>
-              <span className="text-white font-semibold">
+              <span className="text-gray-300 font-semibold">
                 ₹{pricing.subtotal}
               </span>
             </div>
@@ -143,7 +143,7 @@ export default function PriceCalculator({ files }: PriceCalculatorProps) {
 
       <div className="flex justify-between items-center pt-4 border-t-2 border-white">
         <span className="text-xl font-bold text-white">Total</span>
-        <span className="text-2xl font-bold text-white">₹{total}</span>
+        <span className="text-2xl font-bold text-gray-300">₹{total}</span>
       </div>
     </div>
   );
