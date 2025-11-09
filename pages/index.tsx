@@ -278,10 +278,10 @@ export default function Home() {
 
   if (orderSubmitted) {
     return (
-      <div className="min-h-screen bg-black flex items-center justify-center p-4">
-        <div className="bg-gray-800 border border-gray-600 rounded-lg p-10 max-w-md text-center space-y-6">
+      <div className="min-h-screen bg-white flex items-center justify-center p-4">
+        <div className="bg-gray-50 border border-gray-200 rounded-lg p-10 max-w-md text-center space-y-6">
           <div className="flex flex-col items-center space-y-4">
-            <div className="w-24 h-24 rounded-full border-4 border-white flex items-center justify-center animate-pulse">
+            <div className="w-24 h-24 rounded-full border-4 border-[#282828] flex items-center justify-center animate-pulse">
               <svg
                 xmlns="http://www.w3.org/2000/svg"
                 viewBox="0 0 24 24"
@@ -290,19 +290,19 @@ export default function Home() {
                 strokeWidth="2"
                 strokeLinecap="round"
                 strokeLinejoin="round"
-                className="text-white w-12 h-12"
+                className="text-[#282828] w-12 h-12"
               >
                 <path d="m5 12 5 5L20 7" />
               </svg>
             </div>
-            <h1 className="text-3xl font-bold text-white">Order Placed!</h1>
-            <p className="text-white/90">
+            <h1 className="text-3xl font-bold text-[#282828]">Order Placed!</h1>
+            <p className="text-gray-700">
               We received your files and payment details. Hang tight while we
               prepare your confirmation.
             </p>
             {orderId && (
-              <p className="text-white/70 text-sm">
-                Generating order ID <span className="text-white font-semibold">{orderId}</span>
+              <p className="text-gray-600 text-sm">
+                Generating order ID <span className="text-[#282828] font-semibold">{orderId}</span>
               </p>
             )}
           </div>
@@ -312,7 +312,7 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-screen bg-black text-white relative">
+    <div className="min-h-screen bg-white text-[#282828] relative">
       <Head>
         <title>PrintX</title>
         <meta name="description" content="Order prints easily with PrintX" />
@@ -337,18 +337,18 @@ export default function Home() {
             <div className="min-h-screen flex items-center justify-center relative z-10">
               <div className="text-center relative">
                 {/* Subtle backdrop for better text readability */}
-                <div className="absolute inset-0 -z-10 bg-gray-800/20 backdrop-blur-sm rounded-3xl -m-8 blur-xl"></div>
+                <div className="absolute inset-0 -z-10 bg-gray-100/50 backdrop-blur-sm rounded-3xl -m-8 blur-xl"></div>
                 <div className="relative">
-                  <h1 className="text-6xl md:text-8xl font-bold mb-8 drop-shadow-2xl text-white">
+                  <h1 className="text-6xl md:text-8xl font-bold mb-8 text-[#282828]">
                     PrintX
                   </h1>
-                  <p className="text-xl text-white mb-12 max-w-2xl mx-auto drop-shadow-lg">
+                  <p className="text-xl text-gray-700 mb-12 max-w-2xl mx-auto">
                     Professional printing services made simple. Upload your files,
                     choose your options, and get high-quality prints delivered.
                   </p>
                   <button
                     onClick={() => setStage('upload')}
-                    className="bg-white text-black px-12 py-6 rounded-lg text-2xl font-bold hover:bg-gray-200 transition-all transform hover:scale-105 shadow-xl border-2 border-white hover:border-gray-200"
+                    className="bg-[#282828] text-white px-12 py-6 rounded-lg text-2xl font-bold hover:bg-[#1f1f1f] transition-all transform hover:scale-105 shadow-xl border-2 border-[#282828] hover:border-[#1f1f1f]"
                   >
                     Get Started
                   </button>
@@ -358,19 +358,19 @@ export default function Home() {
 
             {/* Info Section 1 - Always visible */}
             <div className="py-20">
-              <div className="bg-gray-800 border border-gray-600 rounded-lg p-8 md:p-12">
+              <div className="bg-gray-50 border border-gray-200 rounded-lg p-8 md:p-12">
                 <div className="grid md:grid-cols-2 gap-8 items-center">
                   <div>
-                    <h2 className="text-4xl font-bold mb-6 text-white">
+                    <h2 className="text-4xl font-bold mb-6 text-[#282828]">
                       Why Choose PrintX?
                     </h2>
-                    <ul className="space-y-4 text-white">
+                    <ul className="space-y-4 text-gray-700">
                       <li className="flex items-start">
-                        <span className="text-white mr-3 text-xl">
+                        <span className="text-[#282828] mr-3 text-xl">
                           ✓
                         </span>
                         <span>
-                          <strong className="text-white">
+                          <strong className="text-[#282828]">
                             High-Quality Prints:
                           </strong>{' '}
                           Professional-grade printing with multiple paper
@@ -378,11 +378,11 @@ export default function Home() {
                         </span>
                       </li>
                       <li className="flex items-start">
-                        <span className="text-white mr-3 text-xl">
+                        <span className="text-[#282828] mr-3 text-xl">
                           ✓
                         </span>
                         <span>
-                          <strong className="text-white">
+                          <strong className="text-[#282828]">
                             Flexible Options:
                           </strong>{' '}
                           Choose between Color or B&W, multiple paper weights,
@@ -390,22 +390,22 @@ export default function Home() {
                         </span>
                       </li>
                       <li className="flex items-start">
-                        <span className="text-white mr-3 text-xl">
+                        <span className="text-[#282828] mr-3 text-xl">
                           ✓
                         </span>
                         <span>
-                          <strong className="text-white">
+                          <strong className="text-[#282828]">
                             Easy Upload:
                           </strong>{' '}
                           Support for PDF, PNG, JPG, and JPEG files
                         </span>
                       </li>
                       <li className="flex items-start">
-                        <span className="text-white mr-3 text-xl">
+                        <span className="text-[#282828] mr-3 text-xl">
                           ✓
                         </span>
                         <span>
-                          <strong className="text-white">
+                          <strong className="text-[#282828]">
                             Secure Payment:
                           </strong>{' '}
                           Pay securely via UPI with instant order confirmation
@@ -413,11 +413,11 @@ export default function Home() {
                       </li>
                     </ul>
                   </div>
-                  <div className="bg-black rounded-lg p-6 border border-gray-600">
-                    <h3 className="text-2xl font-bold mb-4 text-white">
+                  <div className="bg-white rounded-lg p-6 border border-gray-200">
+                    <h3 className="text-2xl font-bold mb-4 text-[#282828]">
                       Quick Start
                     </h3>
-                    <ol className="space-y-3 text-white list-decimal list-inside">
+                    <ol className="space-y-3 text-gray-700 list-decimal list-inside">
                       <li>Click the Get Started button to begin</li>
                       <li>Upload your files (PDF, images)</li>
                       <li>Configure print options for each file</li>
@@ -432,48 +432,48 @@ export default function Home() {
 
             {/* Info Section 2 - Pricing Information */}
             <div className="py-20">
-              <div className="bg-gray-800 border border-gray-600 rounded-lg p-8 md:p-12">
-                <h2 className="text-4xl font-bold mb-8 text-center text-white">
+              <div className="bg-gray-50 border border-gray-200 rounded-lg p-8 md:p-12">
+                <h2 className="text-4xl font-bold mb-8 text-center text-[#282828]">
                   Transparent Pricing
                 </h2>
                 <div className="grid md:grid-cols-2 gap-8">
-                  <div className="bg-black rounded-lg p-6 border border-gray-600">
-                    <h3 className="text-2xl font-bold mb-4 text-white">
+                  <div className="bg-white rounded-lg p-6 border border-gray-200">
+                    <h3 className="text-2xl font-bold mb-4 text-[#282828]">
                       Base Pricing
                     </h3>
-                    <div className="space-y-3 text-white">
+                    <div className="space-y-3 text-gray-700">
                       <div className="flex justify-between">
                         <span>B&W Print (A4)</span>
-                        <span className="text-gray-300 font-semibold">₹5/page</span>
+                        <span className="text-gray-600 font-semibold">₹5/page</span>
                       </div>
                       <div className="flex justify-between">
                         <span>Color Print (A4)</span>
-                        <span className="text-gray-300 font-semibold">
+                        <span className="text-gray-600 font-semibold">
                           ₹15/page
                         </span>
                       </div>
                     </div>
                   </div>
-                  <div className="bg-black rounded-lg p-6 border border-gray-600">
-                    <h3 className="text-2xl font-bold mb-4 text-white">
+                  <div className="bg-white rounded-lg p-6 border border-gray-200">
+                    <h3 className="text-2xl font-bold mb-4 text-[#282828]">
                       Additional Options
                     </h3>
-                    <div className="space-y-3 text-white">
+                    <div className="space-y-3 text-gray-700">
                       <div className="flex justify-between">
                         <span>55gsm Paper</span>
-                        <span className="text-gray-300 font-semibold">
+                        <span className="text-gray-600 font-semibold">
                           +₹2/page
                         </span>
                       </div>
                       <div className="flex justify-between">
                         <span>White Binding</span>
-                        <span className="text-gray-300 font-semibold">
+                        <span className="text-gray-600 font-semibold">
                           +₹20
                         </span>
                       </div>
                       <div className="flex justify-between">
                         <span>Blue Binding</span>
-                        <span className="text-gray-300 font-semibold">
+                        <span className="text-gray-600 font-semibold">
                           +₹25
                         </span>
                       </div>
@@ -485,41 +485,41 @@ export default function Home() {
 
             {/* Info Section 3 - Features */}
             <div className="py-20">
-              <div className="bg-gray-800 border border-gray-600 rounded-lg p-8 md:p-12">
-                <h2 className="text-4xl font-bold mb-8 text-center text-white">
+              <div className="bg-gray-50 border border-gray-200 rounded-lg p-8 md:p-12">
+                <h2 className="text-4xl font-bold mb-8 text-center text-[#282828]">
                   Features
                 </h2>
                 <div className="grid md:grid-cols-3 gap-6">
                   <div className="text-center">
-                    <div className="bg-black rounded-full w-20 h-20 flex items-center justify-center mx-auto mb-4 border-2 border-gray-600">
+                    <div className="bg-white rounded-full w-20 h-20 flex items-center justify-center mx-auto mb-4 border-2 border-gray-200">
                       <span className="text-4xl">📄</span>
                     </div>
-                    <h3 className="text-xl font-bold mb-2 text-white">
+                    <h3 className="text-xl font-bold mb-2 text-[#282828]">
                       Multiple Formats
                     </h3>
-                    <p className="text-white/90">
+                    <p className="text-gray-600">
                       Support for PDF, PNG, JPG, and JPEG files
                     </p>
                   </div>
                   <div className="text-center">
-                    <div className="bg-black rounded-full w-20 h-20 flex items-center justify-center mx-auto mb-4 border-2 border-gray-600">
+                    <div className="bg-white rounded-full w-20 h-20 flex items-center justify-center mx-auto mb-4 border-2 border-gray-200">
                       <span className="text-4xl">⚙️</span>
                     </div>
-                    <h3 className="text-xl font-bold mb-2 text-white">
+                    <h3 className="text-xl font-bold mb-2 text-[#282828]">
                       Custom Options
                     </h3>
-                    <p className="text-white/90">
+                    <p className="text-gray-600">
                       Configure print settings for each file individually
                     </p>
                   </div>
                   <div className="text-center">
-                    <div className="bg-black rounded-full w-20 h-20 flex items-center justify-center mx-auto mb-4 border-2 border-gray-600">
+                    <div className="bg-white rounded-full w-20 h-20 flex items-center justify-center mx-auto mb-4 border-2 border-gray-200">
                       <span className="text-4xl">💳</span>
                     </div>
-                    <h3 className="text-xl font-bold mb-2 text-white">
+                    <h3 className="text-xl font-bold mb-2 text-[#282828]">
                       Easy Payment
                     </h3>
-                    <p className="text-white/90">
+                    <p className="text-gray-600">
                       Quick UPI payment with QR code scanning
                     </p>
                   </div>
@@ -529,17 +529,17 @@ export default function Home() {
 
             {/* CTA Section */}
             <div className="py-20">
-              <div className="bg-gray-800 border border-gray-600 rounded-lg p-12 text-center">
-                <h2 className="text-4xl font-bold mb-6 text-white">
+              <div className="bg-gray-50 border border-gray-200 rounded-lg p-12 text-center">
+                <h2 className="text-4xl font-bold mb-6 text-[#282828]">
                   Ready to Print?
                 </h2>
-                <p className="text-xl text-white/90 mb-8 max-w-2xl mx-auto">
+                <p className="text-xl text-gray-700 mb-8 max-w-2xl mx-auto">
                   Get started now with our simple and efficient printing
                   service. Upload your files and place your order in minutes.
                 </p>
                 <button
                   onClick={() => setStage('upload')}
-                  className="bg-white text-black px-12 py-6 rounded-lg text-2xl font-bold hover:bg-gray-200 transition-all transform hover:scale-105 shadow-xl border-2 border-white hover:border-gray-200"
+                  className="bg-[#282828] text-white px-12 py-6 rounded-lg text-2xl font-bold hover:bg-[#1f1f1f] transition-all transform hover:scale-105 shadow-xl border-2 border-[#282828] hover:border-[#1f1f1f]"
                 >
                   Start Printing Now
                 </button>
@@ -551,13 +551,13 @@ export default function Home() {
         {stage === 'upload' && (
           <div className="space-y-8">
             <div className="flex items-center justify-between">
-              <h1 className="text-4xl font-bold text-white">Upload Files</h1>
+              <h1 className="text-4xl font-bold text-[#282828]">Upload Files</h1>
               <button
                 onClick={() => {
                   setStage('hero');
                   setFiles([]);
                 }}
-                className="text-white/70 hover:text-white transition-colors"
+                className="text-gray-600 hover:text-[#282828] transition-colors"
               >
                 ← Back
               </button>
@@ -576,7 +576,7 @@ export default function Home() {
                 <div className="flex justify-end">
                   <button
                     onClick={handleProceedToPayment}
-                    className="bg-white text-black px-8 py-3 rounded-lg font-semibold hover:bg-gray-200 transition-all transform hover:scale-105 shadow-lg border-2 border-white hover:border-gray-200"
+                    className="bg-[#282828] text-white px-8 py-3 rounded-lg font-semibold hover:bg-[#1f1f1f] transition-all transform hover:scale-105 shadow-lg border-2 border-[#282828] hover:border-[#1f1f1f]"
                   >
                     Proceed to Payment
                   </button>
@@ -589,10 +589,10 @@ export default function Home() {
         {stage === 'payment' && (
           <div className="space-y-8">
             <div className="flex items-center justify-between">
-              <h1 className="text-4xl font-bold text-white">Payment & Order Review</h1>
+              <h1 className="text-4xl font-bold text-[#282828]">Payment & Order Review</h1>
               <button
                 onClick={() => setStage('upload')}
-                className="text-white/70 hover:text-white transition-colors"
+                className="text-gray-600 hover:text-[#282828] transition-colors"
               >
                 ← Back
               </button>
@@ -602,8 +602,8 @@ export default function Home() {
             <PriceCalculator files={files} />
 
             {/* Payment QR Code */}
-            <div className="bg-gray-800 border border-gray-600 rounded-lg p-8">
-              <h2 className="text-2xl font-bold mb-6 text-center text-white">
+            <div className="bg-gray-50 border border-gray-200 rounded-lg p-8">
+              <h2 className="text-2xl font-bold mb-6 text-center text-[#282828]">
                 Scan to Pay
               </h2>
               <div className="flex flex-col items-center space-y-4">
@@ -612,20 +612,20 @@ export default function Home() {
                   displayValue={vpaDisplay}
                   size={256}
                 />
-                <p className="text-white text-sm text-center">
+                <p className="text-gray-700 text-sm text-center">
                   Amount: ₹{calculatedTotal.toFixed(2)}
                 </p>
               </div>
             </div>
 
             {/* Payment Screenshot Upload */}
-            <div className="bg-gray-800 border border-gray-600 rounded-lg p-6">
-              <h2 className="text-xl font-bold mb-4 text-white">
+            <div className="bg-gray-50 border border-gray-200 rounded-lg p-6">
+              <h2 className="text-xl font-bold mb-4 text-[#282828]">
                 Upload Payment Screenshot
               </h2>
               <label 
                 htmlFor="payment-screenshot-input"
-                className="block text-sm text-white/90 mb-2"
+                className="block text-sm text-gray-700 mb-2"
               >
                 Select payment confirmation screenshot
               </label>
@@ -635,80 +635,80 @@ export default function Home() {
                 type="file"
                 accept="image/png,image/jpeg,image/jpg"
                 onChange={handlePaymentScreenshotChange}
-                className="block w-full text-sm text-white file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-white file:text-black hover:file:bg-gray-200"
+                className="block w-full text-sm text-gray-700 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-[#282828] file:text-white hover:file:bg-[#1f1f1f]"
                 aria-label="Upload payment screenshot"
               />
               {paymentScreenshot && (
                 <div className="mt-2">
-                  <p className="text-gray-300">
+                  <p className="text-gray-700">
                     ✓ Screenshot selected: {paymentScreenshot.name}
                   </p>
-                  <p className="text-xs text-white/70 mt-1">
+                  <p className="text-xs text-gray-600 mt-1">
                     Size: {(paymentScreenshot.size / (1024 * 1024)).toFixed(2)}MB
                     {paymentScreenshot.size > 2.5 * 1024 * 1024 && (
-                      <span className="text-white ml-2 font-semibold">
+                      <span className="text-red-600 ml-2 font-semibold">
                         (Too large! Max 2.5MB)
                       </span>
                     )}
                   </p>
                 </div>
               )}
-              <p className="text-xs text-white/70 mt-2">
+              <p className="text-xs text-gray-600 mt-2">
                 Maximum file size: 2.5MB per file
               </p>
             </div>
 
             {/* File Count & Size Info */}
-            <div className="bg-black border border-gray-600 rounded-lg p-4 space-y-3">
+            <div className="bg-white border border-gray-200 rounded-lg p-4 space-y-3">
               <div className="flex justify-between items-center text-sm">
-                <span className="text-white/70">Files:</span>
+                <span className="text-gray-600">Files:</span>
                 <span
                   className={`font-semibold ${
-                    files.length > 50 ? 'text-red-400' : 'text-gray-300'
+                    files.length > 50 ? 'text-red-600' : 'text-gray-700'
                   }`}
                 >
                   {files.length} / 50
                 </span>
               </div>
               {files.length > 50 && (
-                <p className="text-red-400 text-xs">
+                <p className="text-red-600 text-xs">
                   ⚠ Maximum 50 files per order. Please remove{' '}
                   {files.length - 50} file(s).
                 </p>
               )}
               <div className="flex justify-between items-center text-sm">
-                <span className="text-white/70">Files size:</span>
-                <span className="font-semibold text-white">
+                <span className="text-gray-600">Files size:</span>
+                <span className="font-semibold text-[#282828]">
                   {(files.reduce((sum, f) => sum + f.file.size, 0) / (1024 * 1024)).toFixed(2)} MB
                 </span>
               </div>
               {paymentScreenshot && (
                 <div className="flex justify-between items-center text-sm">
-                  <span className="text-white/70">Payment screenshot:</span>
-                  <span className="font-semibold text-white">
+                  <span className="text-gray-600">Payment screenshot:</span>
+                  <span className="font-semibold text-[#282828]">
                     {(paymentScreenshot.size / (1024 * 1024)).toFixed(2)} MB
                   </span>
                 </div>
               )}
-              <div className="flex justify-between items-center text-sm border-t border-gray-600 pt-2">
-                <span className="text-white/70">Total upload size:</span>
+              <div className="flex justify-between items-center text-sm border-t border-gray-200 pt-2">
+                <span className="text-gray-600">Total upload size:</span>
                 <span
                   className={`font-semibold ${
                     totalUploadSize > maxTotalSize
-                      ? 'text-red-400'
-                      : 'text-gray-300'
+                      ? 'text-red-600'
+                      : 'text-gray-700'
                   }`}
                 >
                   {(totalUploadSize / (1024 * 1024)).toFixed(2)} MB / 500MB
                 </span>
               </div>
               {totalUploadSize > maxTotalSize && (
-                <p className="text-red-400 text-xs">
+                <p className="text-red-600 text-xs">
                   ⚠ Total size exceeds limit (including payment screenshot). Please compress files or remove some files.
                 </p>
               )}
               {!paymentScreenshot && files.length > 0 && (
-                <p className="text-white/70 text-xs">
+                <p className="text-gray-600 text-xs">
                   ℹ Payment screenshot will be added to total size
                 </p>
               )}
@@ -716,7 +716,7 @@ export default function Home() {
 
             {/* Error Message */}
             {error && (
-              <div className="bg-black border border-red-500 rounded-lg p-4">
+              <div className="bg-red-50 border border-red-200 rounded-lg p-4">
                 <div className="flex items-start gap-3">
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
@@ -726,19 +726,19 @@ export default function Home() {
                     strokeWidth="2"
                     strokeLinecap="round"
                     strokeLinejoin="round"
-                    className="text-red-500 w-5 h-5 flex-shrink-0 mt-0.5"
+                    className="text-red-600 w-5 h-5 flex-shrink-0 mt-0.5"
                   >
                     <circle cx="12" cy="12" r="10" />
                     <line x1="12" y1="8" x2="12" y2="12" />
                     <line x1="12" y1="16" x2="12.01" y2="16" />
                   </svg>
                   <div className="flex-1">
-                    <p className="text-red-500 font-semibold mb-1">Error</p>
-                    <p className="text-white text-sm">{error}</p>
+                    <p className="text-red-600 font-semibold mb-1">Error</p>
+                    <p className="text-gray-700 text-sm whitespace-pre-line">{error}</p>
                   </div>
                   <button
                     onClick={() => setError(null)}
-                    className="text-red-500 hover:text-red-400"
+                    className="text-red-600 hover:text-red-700"
                   >
                     ×
                   </button>
@@ -759,7 +759,7 @@ export default function Home() {
                   (paymentScreenshot &&
                     paymentScreenshot.size > 2.5 * 1024 * 1024)
                 }
-                className="bg-white text-black px-8 py-3 rounded-lg font-semibold hover:bg-gray-200 transition-all transform hover:scale-105 shadow-lg border-2 border-white hover:border-gray-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
+                className="bg-[#282828] text-white px-8 py-3 rounded-lg font-semibold hover:bg-[#1f1f1f] transition-all transform hover:scale-105 shadow-lg border-2 border-[#282828] hover:border-[#1f1f1f] disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
               >
                 {isSubmitting ? 'Submitting...' : 'Confirm & Proceed'}
               </button>
