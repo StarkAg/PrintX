@@ -10,6 +10,34 @@ A minimal Next.js + TypeScript MVP for print ordering with a sleek black & white
 - **File handling**: Support for PDF, PNG, JPG, JPEG
 - **Dynamic pricing**: Based on color, paper GSM, and binding options
 
+## Screenshots
+
+<div align="center">
+
+### Home Page
+![Home Page](docs/images/homepage.png)
+*Landing page with animated papers background and hero section*
+
+### File Upload
+![File Upload](docs/images/file-upload.png)
+*Drag and drop file upload interface with print options configuration*
+
+### Payment & Order Review
+![Payment](docs/images/payment.png)
+*UPI QR code payment interface with order summary*
+
+### Admin Dashboard
+![Admin Dashboard](docs/images/admin-dashboard.png)
+*Admin dashboard with order management, statistics, and filtering options*
+
+### Order Status
+![Order Status](docs/images/order-status.png)
+*Order confirmation and status page with order details*
+
+</div>
+
+> **Note:** Screenshots are stored in the `docs/images/` directory. See [docs/images/README.md](docs/images/README.md) for instructions on how to add or update screenshots.
+
 ## Getting Started
 
 ### Prerequisites
